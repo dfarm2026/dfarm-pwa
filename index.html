@@ -1,0 +1,955 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#164f32">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Dファーム">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Dファーム 栽培管理 PRO</title>
+<style>
+:root{
+ --bg:#f2f5f2; --card:#fff; --text:#152019; --muted:#718078; --line:#dfe7e1;
+ --green:#17643a; --green2:#e9f5ed; --green3:#cfe8d7;
+ --amber:#8a5b00; --amber2:#fff3d7; --red:#a02b23; --red2:#fde9e6;
+ --blue:#285e86; --blue2:#eaf2f8; --shadow:0 8px 30px rgba(20,55,35,.07);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+header{position:sticky;top:0;z-index:20;background:rgba(242,245,242,.94);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
+.top{max-width:1100px;margin:auto;padding:12px 16px;display:flex;align-items:center;gap:12px}
+.brand{font-size:20px;font-weight:900}.brand small{display:block;font-size:11px;font-weight:650;color:var(--muted);margin-top:2px}
+.top .grow{flex:1}
+.badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:6px 10px;background:var(--green2);color:var(--green);font-size:11px;font-weight:800}
+main{max-width:1100px;margin:auto;padding:14px 14px 100px}
+.page{display:none}.page.active{display:block}
+.hero{background:linear-gradient(135deg,#154a2e,#257649);color:#fff;border-radius:24px;padding:20px;box-shadow:var(--shadow)}
+.hero-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.hero .date{font-size:13px;opacity:.83}.hero h1{margin:6px 0 4px;font-size:28px}.hero p{margin:0;opacity:.9;font-size:13px;line-height:1.5}
+.hero .score{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);border-radius:18px;padding:12px 14px;text-align:center;min-width:96px}
+.hero .score b{font-size:26px;display:block}.hero .score span{font-size:11px;opacity:.85}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px;margin-top:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:var(--shadow)}
+.s12{grid-column:span 12}.s8{grid-column:span 8}.s6{grid-column:span 6}.s4{grid-column:span 4}.s3{grid-column:span 3}
+.card h2{font-size:16px;margin:0 0 12px}.card h3{font-size:13px;margin:0 0 8px}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.kpi{border:1px solid var(--line);border-radius:14px;padding:12px;background:#fafcfb}
+.kpi .v{font-size:22px;font-weight:900}.kpi .l{font-size:11px;color:var(--muted);margin-top:3px}
+.kpi .sub{font-size:10px;color:var(--muted);margin-top:2px}
+.btn{border:0;border-radius:11px;padding:10px 13px;font-weight:800}
+.primary{background:var(--green);color:#fff}.soft{background:var(--green2);color:var(--green)}
+.ghost{background:#f0f3f1;color:#435249}.warn{background:var(--amber2);color:var(--amber)}
+.danger{background:var(--red2);color:var(--red)}.blue{background:var(--blue2);color:var(--blue)}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.row{display:flex;gap:8px;align-items:end}.row>*{flex:1}
+label{display:block;font-size:11px;color:var(--muted);margin-bottom:5px}
+input,select,textarea{width:100%;border:1px solid var(--line);border-radius:11px;background:#fff;padding:10px;color:var(--text)}
+textarea{min-height:86px;resize:vertical}
+.small{font-size:11px;color:var(--muted);line-height:1.5}
+.schedule{display:flex;flex-direction:column;gap:8px}
+.slot{display:grid;grid-template-columns:70px 1fr auto;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;padding:11px}
+.slot.done{background:var(--green2);border-color:var(--green3)}
+.slot .time{font-weight:900}.slot .mid{font-size:13px}.slot .mid small{display:block;color:var(--muted);margin-top:3px}
+.alert{border-radius:14px;padding:12px 13px;margin-bottom:8px;font-size:13px;line-height:1.45}
+.alert.green{background:var(--green2);color:#205c3b}.alert.amber{background:var(--amber2);color:#775100}
+.alert.red{background:var(--red2);color:#8f2d25}.alert.blue{background:var(--blue2);color:#2b5879}
+.progress{height:10px;border-radius:999px;background:#edf1ee;overflow:hidden}
+.progress>div{height:100%;background:var(--green);width:0}
+.statline{display:flex;justify-content:space-between;gap:12px;font-size:12px;margin-top:7px;color:var(--muted)}
+.history{border-bottom:1px solid var(--line);padding:12px 0;display:flex;justify-content:space-between;gap:12px}
+.history:last-child{border-bottom:0}.history .d{font-weight:850}.history .s{font-size:11px;color:var(--muted);margin-top:3px}.history .r{text-align:right}
+.tabs{display:flex;gap:7px;overflow:auto;margin-bottom:10px}
+canvas{width:100%;height:240px;background:#fbfcfb;border-radius:12px}
+nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);z-index:30;padding-bottom:env(safe-area-inset-bottom)}
+.navin{max-width:760px;margin:auto;display:grid;grid-template-columns:repeat(5,1fr)}
+nav button{border:0;background:transparent;padding:9px 2px 7px;color:var(--muted);font-size:10px}
+nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-size:19px;margin-bottom:2px}
+.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}th{color:var(--muted)}
+.section-title{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.hidden{display:none!important}
+@media(max-width:780px){
+ .s8,.s6,.s4,.s3{grid-column:span 12}.kpis{grid-template-columns:repeat(2,1fr)}
+ .row{flex-direction:column;align-items:stretch}.hero h1{font-size:24px}.hero .score{min-width:82px}
+}
+
+@media print{
+  body{background:#fff!important}
+  header,nav,main{display:none!important}
+  #printArea{display:block!important;color:#111;background:#fff;padding:0;margin:0}
+  @page{size:A4;margin:12mm}
+  .print-title{font-size:20pt;font-weight:800;margin:0 0 8mm}
+  .print-sub{font-size:9pt;color:#555;margin-bottom:5mm}
+  .print-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:3mm;margin-bottom:5mm}
+  .print-kpi{border:1px solid #bbb;padding:3mm;border-radius:2mm}
+  .print-kpi b{display:block;font-size:14pt;margin-top:1mm}
+  .print-table{width:100%;border-collapse:collapse;font-size:9pt;margin:3mm 0 6mm}
+  .print-table th,.print-table td{border:1px solid #aaa;padding:2mm;text-align:left;white-space:normal}
+  .print-table th{background:#eee}
+  .print-section{font-size:12pt;font-weight:800;margin:5mm 0 2mm}
+  .page-break{page-break-before:always}
+}
+#printArea{display:none}
+
+
+.quick-state{min-height:54px;font-size:16px;flex:1 1 42%}
+#scheduleList .btn{min-width:72px;min-height:44px;font-size:15px}
+.hero{padding:18px}
+#todayPage .card h2{font-size:17px}
+@media(max-width:780px){
+  #todayPage .kpis{grid-template-columns:repeat(2,1fr)}
+  #todayPage .kpi:nth-child(5){grid-column:span 2}
+  .actions .quick-state{width:calc(50% - 4px)}
+}
+
+
+#zeusCard{border:1px solid #cfe8d7;background:linear-gradient(180deg,#ffffff,#f7fbf8)}
+#zeusCard .btn.primary{min-height:48px;font-size:15px}
+</style>
+
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#165a3c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="DファームPRO">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}</script>
+</head>
+<body>
+
+<div id="appLock" style="position:fixed;inset:0;z-index:9999;background:#f2f5f2;display:none;align-items:center;justify-content:center;padding:24px">
+  <div style="width:min(420px,100%);background:#fff;border:1px solid #dfe7e1;border-radius:22px;padding:22px;box-shadow:0 10px 35px rgba(0,0,0,.08)">
+    <div style="font-size:46px;text-align:center">🔒</div>
+    <h2 style="text-align:center;margin:8px 0 4px">Dファーム</h2>
+    <div style="text-align:center;color:#718078;font-size:13px;margin-bottom:16px">栽培管理PRO セキュアモード</div>
+    <label>4〜12桁のアプリPIN</label>
+    <input id="unlockPin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="12" placeholder="PINを入力">
+    <button class="btn primary" id="unlockBtn" style="width:100%;margin-top:10px">ロック解除</button>
+    <div id="unlockMsg" class="small" style="text-align:center;margin-top:8px"></div>
+  </div>
+</div>
+
+<header>
+ <div class="top">
+  <div class="brand">Dファーム <small>栽培管理 PRO</small></div>
+  <div class="grow"></div>
+  <span class="badge" id="saveBadge">● 保存済み</span>
+  <button class="btn soft" id="quickBtn">＋給液</button>
+ </div>
+</header>
+
+<main>
+<section class="page active" id="todayPage">
+ <div class="hero">
+  <div class="hero-top">
+   <div>
+    <div class="date" id="todayDate"></div>
+    <h1>今日の栽培管理</h1>
+    <p>予定 → 実施 → 状態確認 → 記録まで、この画面だけで完結します。</p>
+   </div>
+   <div class="score"><b id="todayScore">100</b><span>管理スコア</span></div>
+  </div>
+ </div>
+
+ <div class="grid">
+  <div class="card s12">
+   <div class="kpis">
+    <div class="kpi"><div class="v"><span id="actualSec">0</span>秒</div><div class="l">実績</div><div class="sub" id="actualMl">0 mL/株</div></div>
+    <div class="kpi"><div class="v"><span id="planSec">0</span>秒</div><div class="l">予定</div><div class="sub" id="planMl">0 mL/株</div></div>
+    <div class="kpi"><div class="v" id="topEcKpi">0.9</div><div class="l">上部EC</div></div>
+    <div class="kpi"><div class="v"><span id="tempKpi">--</span>℃</div><div class="l">ハウス温度</div></div>
+    <div class="kpi"><div class="v" id="shadeKpi">なし</div><div class="l">遮光</div></div>
+   </div>
+  </div>
+
+  <div class="card s8">
+   <div class="section-title"><h2>給液スケジュール</h2><span class="badge" id="progressBadge">0 / 0</span></div>
+   <div class="progress"><div id="scheduleProgress"></div></div>
+   <div class="statline"><span id="expectedTotalText"></span><span id="actualTotalText"></span></div>
+   <div class="schedule" id="scheduleList" style="margin-top:10px"></div>
+   <div class="actions" style="margin-top:12px">
+    <button class="btn soft" id="editSchedule">予定編集</button>
+    <button class="btn ghost" id="copyYesterday">昨日をコピー</button>
+    <button class="btn blue" id="addSlot">＋予定追加</button>
+   </div>
+  </div>
+
+  <div class="card s4">
+   <h2>ゼウス判断</h2>
+   <div id="advice"></div>
+   <button class="btn primary" id="judgeBtn" style="width:100%">再判定</button>
+   <div class="small" style="margin-top:8px">簡易ルール判定。天候・温度・株状態・給液進捗から警告します。</div>
+  </div>
+
+  
+
+<div class="card s12" id="zeusCard">
+  <div class="section-title">
+    <h2>⚡ ゼウス管理</h2>
+    <span class="badge">AI相談</span>
+  </div>
+  <div class="alert green" id="zeusStatus">今日のデータをまとめてゼウスに相談できます。送信はボタンを押した時だけです。</div>
+  <div class="actions">
+    <button class="btn primary" id="photoZeusBtn">📷 写真でゼウス診断</button>
+    <button class="btn soft" id="askZeus">⚡ データだけ相談</button>
+    <button class="btn ghost" id="copyZeus">相談文をコピー</button>
+  </div>
+  <input id="zeusPhotoInput" type="file" accept="image/*" capture="environment" class="hidden">
+  <div id="zeusPhotoWrap" class="hidden" style="margin-top:10px">
+    <img id="zeusPhotoPreview" alt="株写真" style="width:100%;max-height:320px;object-fit:cover;border-radius:14px;border:1px solid var(--line)">
+    <div class="small" id="zeusPhotoDate" style="margin-top:6px"></div>
+    <div class="actions" style="margin-top:8px">
+      <button class="btn primary" id="sharePhotoZeus">この写真でゼウスに送る</button>
+      <button class="btn danger" id="deleteZeusPhoto">写真を削除</button>
+    </div>
+  </div>
+  <div style="margin-top:10px">
+    <label>ゼウスの提案メモ</label>
+    <textarea id="zeusAdviceMemo" placeholder="ChatGPTからの提案をここに貼ると、その日の管理記録として保存できます。"></textarea>
+    <button class="btn soft" id="saveZeusMemo" style="margin-top:8px">提案を保存</button>
+  </div>
+</div>
+
+<div class="card s12">
+  <h2>株の状態を1タップ記録</h2>
+  <div class="actions">
+    <button class="btn primary quick-state" data-state="良好">👍 良好</button>
+    <button class="btn warn quick-state" data-state="少し垂れ">💧 少し垂れ</button>
+    <button class="btn danger quick-state" data-state="かなり垂れ">⚠️ かなり垂れ</button>
+    <button class="btn ghost quick-state" data-state="徒長気味">↗ 徒長気味</button>
+  </div>
+  <div class="small" id="quickStateMsg" style="margin-top:8px">株を見たら近い状態を押すだけ。</div>
+</div>
+
+<div class="card s12">
+  <div class="section-title">
+    <h2>詳しい状態（必要な時だけ）</h2>
+    <button class="btn ghost" id="toggleDetails">開く</button>
+  </div>
+  <div id="detailState" class="hidden">
+
+   <h2 class="hidden">今日の状態</h2>
+   <div class="row">
+    <div><label>天候</label><select id="weather"><option>晴れ</option><option>晴れ時々曇り</option><option>曇り</option><option>雨</option></select></div>
+    <div><label>温度 ℃</label><input id="temp" type="number" step="0.1" placeholder="例 35"></div>
+    <div><label>遮光</label><select id="shade"><option>なし</option><option>30%</option><option>50%</option><option>70%</option><option>100%</option></select></div>
+    <div><label>上部EC</label><input id="topEc" type="number" step="0.1"></div>
+    <div><label>下部EC</label><input id="bottomEc" type="number" step="0.1"></div>
+   </div>
+   <div class="row" style="margin-top:9px">
+    <div><label>株状態</label><select id="plantState"><option>良好</option><option>少し垂れ</option><option>かなり垂れ</option><option>徒長気味</option><option>樹勢弱め</option></select></div>
+    <div><label>葉露</label><select id="dew"><option>なし</option><option>少ない</option><option>多い</option></select></div>
+    <div><label>風</label><select id="wind"><option>弱い</option><option>普通</option><option>強い</option></select></div>
+    <div><label>日射</label><select id="sun"><option>弱い</option><option>普通</option><option>強い</option></select></div>
+    <div><label>開花・着果</label><select id="flower"><option>変化なし</option><option>開花増加</option><option>着果進行</option></select></div>
+   </div>
+   <div style="margin-top:9px"><label>観察メモ</label><textarea id="memo" placeholder="葉の張り、垂れ、花、着果、風当たり、気づいたこと"></textarea></div>
+   <div class="actions" style="margin-top:10px"><button class="btn primary" id="saveState">詳しい状態を保存</button></div>
+   </div>
+  </div>
+ </div>
+</section>
+
+<section class="page" id="recordPage">
+ <div class="grid">
+  <div class="card s12">
+   <h2>追加の給液を記録</h2>
+   <div class="row">
+    <div><label>日付</label><input id="recDate" type="date"></div>
+    <div><label>時刻</label><input id="recTime" type="time"></div>
+    <div><label>秒数</label><input id="recSec" type="number" value="30" min="1"></div>
+    <div><label>区分</label><select id="recZone"><option>上部</option><option>下部</option></select></div>
+   </div>
+   <button class="btn primary" id="addIrrigation" style="margin-top:10px">記録する</button>
+  </div>
+
+  <div class="card s6">
+   <h2>栽培イベント</h2>
+   <div class="row">
+    <div><label>種類</label><select id="eventType"><option>農薬</option><option>開花</option><option>着果</option><option>摘葉</option><option>誘引</option><option>収穫</option><option>糖度</option><option>病害虫</option><option>作業</option><option>その他</option></select></div>
+    <div><label>内容</label><input id="eventText" placeholder="例：1段花房 開花"></div>
+   </div>
+   <button class="btn soft" id="addEvent" style="margin-top:10px">記録する</button>
+  </div>
+
+  <div class="card s6">
+   <h2>収穫・品質</h2>
+   <div class="row">
+    <div><label>収穫量 kg</label><input id="harvestKg" type="number" step="0.1"></div>
+    <div><label>糖度 Brix</label><input id="brix" type="number" step="0.1"></div>
+   </div>
+   <button class="btn soft" id="saveQuality" style="margin-top:10px">保存</button>
+  </div>
+
+  <div class="card s12">
+   <h2>当日ログ</h2>
+   <div id="todayLog"></div>
+  </div>
+ </div>
+</section>
+
+<section class="page" id="historyPage">
+ <div class="grid">
+  <div class="card s12">
+   <div class="section-title"><h2>履歴</h2><div class="tabs"><button class="btn primary range" data-range="7">7日</button><button class="btn ghost range" data-range="30">30日</button><button class="btn ghost range" data-range="9999">全期間</button></div></div>
+   <div id="historyList"></div>
+  </div>
+ </div>
+</section>
+
+<section class="page" id="analysisPage">
+ <div class="grid">
+  <div class="card s12"><h2>給液量推移</h2><canvas id="irrChart" width="950" height="260"></canvas></div>
+  <div class="card s6"><h2>EC推移</h2><canvas id="ecChart" width="450" height="240"></canvas></div>
+  <div class="card s6"><h2>糖度推移</h2><canvas id="brixChart" width="450" height="240"></canvas></div>
+  <div class="card s12">
+   <h2>データ一覧</h2>
+   <div class="tablewrap"><table><thead><tr><th>日付</th><th>給液秒</th><th>mL/株</th><th>上部EC</th><th>温度</th><th>遮光</th><th>株状態</th><th>収穫kg</th><th>Brix</th></tr></thead><tbody id="dataTable"></tbody></table></div>
+  </div>
+ </div>
+</section>
+
+<section class="page" id="settingsPage">
+ <div class="grid">
+
+  <div class="card s12">
+   <h2>見る・出す</h2>
+   <div class="actions">
+    <button class="btn soft goto-page" data-target="historyPage">📅 履歴を見る</button>
+    <button class="btn soft goto-page" data-target="analysisPage">📈 分析を見る</button>
+    <button class="btn primary" id="exportExcel2">Excel出力</button>
+    <button class="btn blue" id="printDaily2">今日の日報</button>
+    <button class="btn blue" id="printMonthly2">今月の月報</button>
+   </div>
+  </div>
+  <div class="card s6">
+   <h2>圃場設定</h2>
+   <div class="row">
+    <div><label>株数</label><input id="plantCount" type="number"></div>
+    <div><label>60秒あたり mL/株</label><input id="mlPer60" type="number" step="0.1"></div>
+   </div>
+   <div class="small" style="margin-top:8px">秒数から mL/株 と総給液Lを自動換算します。</div>
+   <button class="btn primary" id="saveSettings" style="margin-top:10px">設定保存</button>
+  </div>
+
+  <div class="card s6">
+   <h2>警告基準</h2>
+   <div class="row">
+    <div><label>高温警告 ℃</label><input id="hotThreshold" type="number" step="0.1"></div>
+    <div><label>雨天多給液警告 秒</label><input id="rainSecThreshold" type="number"></div>
+   </div>
+   <button class="btn soft" id="saveThresholds" style="margin-top:10px">基準保存</button>
+  </div>
+
+  
+<div class="card s12">
+  <h2>🔐 セキュリティ</h2>
+  <div class="alert green">栽培データと写真はこのiPhone内に保存。外部DBへ自動送信しません。</div>
+  <div class="row">
+    <div>
+      <label>アプリPIN（4〜12桁）</label>
+      <input id="setPin" type="password" inputmode="numeric" maxlength="12" placeholder="新しいPIN">
+    </div>
+    <div>
+      <label>自動ロック</label>
+      <select id="autoLockMinutes">
+        <option value="1">1分</option>
+        <option value="5">5分</option>
+        <option value="15">15分</option>
+        <option value="30">30分</option>
+      </select>
+    </div>
+  </div>
+  <div class="actions" style="margin-top:10px">
+    <button class="btn primary" id="saveSecurity">PIN設定</button>
+    <button class="btn ghost" id="lockNow">今すぐロック</button>
+  </div>
+  <hr>
+  <h3>暗号化バックアップ</h3>
+  <div class="small">バックアップはAES-GCMで暗号化。パスフレーズを忘れると復元できません。</div>
+  <div class="row" style="margin-top:8px">
+    <div><label>バックアップ用パスフレーズ</label><input id="backupPass" type="password" placeholder="12文字以上推奨"></div>
+  </div>
+  <div class="actions" style="margin-top:10px">
+    <button class="btn soft" id="exportEncrypted">暗号化バックアップ保存</button>
+    <label class="btn ghost">暗号化バックアップ読込<input id="importEncrypted" type="file" accept=".dfarm,.json" class="hidden"></label>
+  </div>
+</div>
+
+<div class="card s12">
+   <h2>バックアップ・移行</h2>
+   <div class="actions">
+    <button class="btn soft" id="exportJson">JSONバックアップ</button>
+    <button class="btn soft" id="exportCsv">CSV出力</button>
+    <button class="btn primary" id="exportExcel">Excel出力</button>
+    <button class="btn blue" id="printDaily">今日の日報</button>
+    <button class="btn blue" id="printMonthly">今月の月報</button>
+    <label class="btn ghost">JSON読込<input id="importJson" type="file" accept=".json" class="hidden"></label>
+    <button class="btn danger" id="resetAll">全データ削除</button>
+   </div>
+   <div class="small" style="margin-top:10px">データはこの端末内に保存されます。端末変更やブラウザ削除に備えて、定期的にJSONバックアップを保存してください。</div>
+  </div>
+ </div>
+</section>
+</main>
+<div id="printArea"></div>
+
+
+<nav>
+ <div class="navin" style="grid-template-columns:repeat(3,1fr)">
+  <button class="active" data-page="todayPage"><span class="ico">🏠</span>今日</button>
+  <button data-page="recordPage"><span class="ico">📷</span>記録</button>
+  <button data-page="settingsPage"><span class="ico">•••</span>その他</button>
+ </div>
+</nav>
+
+
+<script>
+const $=id=>document.getElementById(id);
+const KEY='dfarm_pro_v3';
+const DEFAULTS={settings:{plantCount:5100,mlPer60:25,hotThreshold:36,rainSecThreshold:90},days:{}};
+function todayStr(d=new Date()){const z=d.getTimezoneOffset();return new Date(d-z*60000).toISOString().slice(0,10)}
+function nowTime(){const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}
+function jpDate(d=new Date()){return new Intl.DateTimeFormat('ja-JP',{year:'numeric',month:'long',day:'numeric',weekday:'short'}).format(d)}
+function load(){try{const x=JSON.parse(localStorage.getItem(KEY));return x&&x.settings&&x.days?x:structuredClone(DEFAULTS)}catch{return structuredClone(DEFAULTS)}}
+function save(db){localStorage.setItem(KEY,JSON.stringify(db));flashSaved()}
+function flashSaved(){const b=$('saveBadge');b.textContent='● 保存済み';setTimeout(()=>b.textContent='● 保存済み',400)}
+function dayTemplate(){return {state:{weather:'晴れ',temp:'',shade:'なし',topEc:'0.9',bottomEc:'1.0',plantState:'良好',dew:'なし',wind:'弱い',sun:'普通',flower:'変化なし',memo:''},schedule:[],logs:[],events:[],quality:{harvestKg:'',brix:''},zeusAdvice:''}}
+function ensureDay(date){const db=load();if(!db.days[date]){db.days[date]=dayTemplate();save(db)}return db.days[date]}
+function setDay(date,d){const db=load();db.days[date]=d;save(db)}
+function defaultSchedule(){return[
+ {time:'07:00',seconds:30,zone:'上部'},
+ {time:'09:30',seconds:30,zone:'上部'},
+ {time:'11:30',seconds:30,zone:'上部'},
+ {time:'13:00',seconds:30,zone:'上部'}
+]}
+function totalSec(d){return (d.logs||[]).reduce((a,x)=>a+Number(x.seconds||0),0)}
+function plannedSec(d){return (d.schedule||[]).reduce((a,x)=>a+Number(x.seconds||0),0)}
+function mlPerPlant(seconds){const s=load().settings;return seconds*(Number(s.mlPer60)||25)/60}
+function totalLiters(seconds){const s=load().settings;return mlPerPlant(seconds)*(Number(s.plantCount)||0)/1000}
+function isDone(d,s){return (d.logs||[]).some(l=>l.source==='schedule'&&l.scheduleTime===s.time&&Number(l.seconds)===Number(s.seconds)&&l.zone===s.zone)}
+const TODAY=todayStr();ensureDay(TODAY);
+
+function renderToday(){
+ const d=ensureDay(TODAY); if(!d.schedule.length){d.schedule=defaultSchedule();setDay(TODAY,d)}
+ $('todayDate').textContent=jpDate();
+ const actual=totalSec(d), plan=plannedSec(d), st=d.state;
+ $('actualSec').textContent=actual;$('planSec').textContent=plan;
+ $('actualMl').textContent=`${mlPerPlant(actual).toFixed(1)} mL/株・${totalLiters(actual).toFixed(1)} L`;
+ $('planMl').textContent=`${mlPerPlant(plan).toFixed(1)} mL/株`;
+ $('topEcKpi').textContent=st.topEc||'--';$('tempKpi').textContent=st.temp||'--';$('shadeKpi').textContent=st.shade||'なし';
+ ['weather','temp','shade','topEc','bottomEc','plantState','dew','wind','sun','flower','memo'].forEach(id=>{$(id).value=st[id]??''});
+
+ const doneCount=d.schedule.filter(s=>isDone(d,s)).length;
+ $('progressBadge').textContent=`${doneCount} / ${d.schedule.length}`;
+ $('scheduleProgress').style.width=`${d.schedule.length?doneCount/d.schedule.length*100:0}%`;
+ $('expectedTotalText').textContent=`予定 ${plan}秒 / ${mlPerPlant(plan).toFixed(1)}mL/株`;
+ $('actualTotalText').textContent=`実績 ${actual}秒 / ${mlPerPlant(actual).toFixed(1)}mL/株`;
+
+ const list=$('scheduleList');list.innerHTML='';
+ d.schedule.slice().sort((a,b)=>a.time.localeCompare(b.time)).forEach((s,i)=>{
+   const done=isDone(d,s);
+   const div=document.createElement('div');div.className='slot'+(done?' done':'');
+   div.innerHTML=`<div class="time">${s.time}</div><div class="mid"><b>${s.zone} ${s.seconds}秒</b><small>${mlPerPlant(s.seconds).toFixed(1)}mL/株 ${done?'・実施済み':'・未実施'}</small></div><button class="btn ${done?'ghost':'primary'}" data-i="${i}">${done?'取消':'実施'}</button>`;
+   list.appendChild(div);
+ });
+ list.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+   const d=ensureDay(TODAY);d.schedule.sort((a,b)=>a.time.localeCompare(b.time));const s=d.schedule[Number(b.dataset.i)];
+   const idx=d.logs.findIndex(l=>l.source==='schedule'&&l.scheduleTime===s.time&&Number(l.seconds)===Number(s.seconds)&&l.zone===s.zone);
+   if(idx<0)d.logs.push({time:nowTime(),seconds:Number(s.seconds),zone:s.zone,source:'schedule',scheduleTime:s.time});
+   else d.logs.splice(idx,1);
+   setDay(TODAY,d);renderAll();
+ });
+ renderAdvice();
+}
+
+function renderAdvice(){
+ const d=ensureDay(TODAY),st=d.state,db=load(),cfg=db.settings,actual=totalSec(d),plan=plannedSec(d);
+ const alerts=[];let score=100;
+ const temp=Number(st.temp||0);
+ if(st.plantState==='かなり垂れ'){alerts.push(['red','株がかなり垂れています。次回給液の前倒し・追加を最優先で確認。']);score-=25}
+ else if(st.plantState==='少し垂れ'){alerts.push(['amber','軽い水分ストレスの可能性。次回給液までに葉の張りが戻るか確認。']);score-=10}
+ if(st.plantState==='徒長気味'){alerts.push(['amber','徒長傾向。過剰給液・遮光・窒素寄りの管理になっていないか確認。']);score-=10}
+ if(st.plantState==='樹勢弱め'){alerts.push(['amber','樹勢が弱め。根域水分、EC、高温ストレスをまとめて確認。']);score-=10}
+ if(temp>=Number(cfg.hotThreshold||36)){alerts.push(['amber',`高温警告：${temp}℃。日射と風を見ながら給液間隔を詰める候補。`]);score-=10}
+ if(st.weather==='雨'&&actual>Number(cfg.rainSecThreshold||90)){alerts.push(['blue','雨天で給液量が多めです。過湿・根域EC低下を確認。']);score-=8}
+ if(st.dew==='多い'){alerts.push(['blue','葉露が多い状態。朝の過湿と病害リスクに注意。']);score-=6}
+ if(st.sun==='強い'&&st.wind==='強い'){alerts.push(['amber','強日射＋強風。蒸散が急増しやすいので、風当たりの強い場所を重点確認。']);score-=5}
+ if(plan>0&&actual>plan*1.25){alerts.push(['amber','予定より25%以上多く給液しています。追加理由をメモに残すのがおすすめ。']);score-=7}
+ if(plan>0&&actual<plan*0.5&&new Date().getHours()>=12){alerts.push(['blue','正午以降で予定の50%未満です。未実施給液が残っていないか確認。']);score-=5}
+ if(!alerts.length)alerts.push(['green','大きな警告なし。予定どおり進めつつ、葉の張りと生長点を確認。']);
+ $('advice').innerHTML=alerts.map(a=>`<div class="alert ${a[0]}">${a[1]}</div>`).join('');
+ $('todayScore').textContent=Math.max(0,score);
+}
+
+function saveState(){
+ const d=ensureDay(TODAY);['weather','temp','shade','topEc','bottomEc','plantState','dew','wind','sun','flower','memo'].forEach(id=>d.state[id]=$(id).value);setDay(TODAY,d);renderAll()
+}
+$('saveState').onclick=saveState;
+if($('goodBtn')) $('goodBtn').onclick=()=>{$('plantState').value='良好';saveState()}
+if($('droopBtn')) $('droopBtn').onclick=()=>{$('plantState').value='少し垂れ';saveState()}
+$('judgeBtn').onclick=()=>{saveState();renderAdvice()}
+
+$('quickBtn').onclick=()=>{document.querySelector('nav button[data-page="recordPage"]').click();$('recDate').value=TODAY;$('recTime').value=nowTime()}
+$('addIrrigation').onclick=()=>{
+ const date=$('recDate').value||TODAY,d=ensureDay(date),sec=Number($('recSec').value);
+ if(!sec||sec<1)return alert('秒数を確認してください');
+ d.logs.push({time:$('recTime').value||nowTime(),seconds:sec,zone:$('recZone').value,source:'manual'});setDay(date,d);renderAll()
+}
+$('addEvent').onclick=()=>{const t=$('eventText').value.trim();if(!t)return;const d=ensureDay(TODAY);d.events.push({time:nowTime(),type:$('eventType').value,text:t});setDay(TODAY,d);$('eventText').value='';renderAll()}
+$('saveQuality').onclick=()=>{const d=ensureDay(TODAY);d.quality={harvestKg:$('harvestKg').value,brix:$('brix').value};setDay(TODAY,d);renderAll()}
+
+function renderLogs(){
+ const d=ensureDay(TODAY),items=[];
+ (d.logs||[]).slice().sort((a,b)=>a.time.localeCompare(b.time)).forEach(l=>items.push(`<div class="history"><div><div class="d">${l.time} 給液</div><div class="s">${l.zone}${l.source==='schedule'?'・予定実施':'・手動'}</div></div><div class="r"><b>${l.seconds}秒</b><div class="s">${mlPerPlant(l.seconds).toFixed(1)}mL/株</div></div></div>`));
+ (d.events||[]).forEach(e=>items.push(`<div class="history"><div><div class="d">${e.time||''} ${e.type}</div><div class="s">${e.text}</div></div></div>`));
+ $('todayLog').innerHTML=items.length?items.join(''):'<div class="small">まだ記録はありません。</div>';
+ $('harvestKg').value=d.quality.harvestKg||'';$('brix').value=d.quality.brix||'';
+}
+
+function renderHistory(range=7){
+ const db=load(),dates=Object.keys(db.days).sort().reverse().slice(0,range);
+ $('historyList').innerHTML=dates.length?dates.map(date=>{
+   const d=db.days[date],s=d.state||{};
+   return `<div class="history"><div><div class="d">${date}</div><div class="s">${s.weather||''} / 遮光 ${s.shade||''} / ${s.plantState||''}</div></div><div class="r"><b>${totalSec(d)}秒</b><div class="s">${mlPerPlant(totalSec(d)).toFixed(1)}mL/株・Brix ${d.quality?.brix||'-'}</div></div></div>`
+ }).join(''):'<div class="small">履歴はありません。</div>';
+}
+
+function lineChart(canvasId,values,labels,maxFloor=1){
+ const c=$(canvasId),ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);
+ const left=45,right=c.width-16,top=18,bottom=c.height-34,w=right-left,h=bottom-top,max=Math.max(maxFloor,...values.map(Number).filter(Number.isFinite));
+ ctx.strokeStyle='#e1e7e3';ctx.lineWidth=1;for(let i=0;i<5;i++){let y=top+i*h/4;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke()}
+ if(!values.length)return;
+ ctx.strokeStyle='#17643a';ctx.lineWidth=3;ctx.beginPath();
+ values.forEach((v,i)=>{v=Number(v)||0;const x=left+(values.length===1?0:w*i/(values.length-1)),y=bottom-h*v/max;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)});ctx.stroke();
+ ctx.fillStyle='#17643a';values.forEach((v,i)=>{v=Number(v)||0;const x=left+(values.length===1?0:w*i/(values.length-1)),y=bottom-h*v/max;ctx.beginPath();ctx.arc(x,y,3.5,0,Math.PI*2);ctx.fill()});
+ ctx.fillStyle='#718078';ctx.font='11px sans-serif';labels.forEach((l,i)=>{if(i%2===0||labels.length<8){const x=left+(labels.length===1?0:w*i/(labels.length-1));ctx.fillText(l.slice(5),x-14,c.height-10)}});
+}
+function renderAnalysis(){
+ const db=load(),dates=Object.keys(db.days).sort().slice(-14),days=dates.map(d=>db.days[d]);
+ lineChart('irrChart',days.map(totalSec),dates,120);lineChart('ecChart',days.map(d=>Number(d.state.topEc||0)),dates,1.2);lineChart('brixChart',days.map(d=>Number(d.quality?.brix||0)),dates,10);
+ $('dataTable').innerHTML=Object.keys(db.days).sort().reverse().map(date=>{const d=db.days[date],s=d.state;return `<tr><td>${date}</td><td>${totalSec(d)}</td><td>${mlPerPlant(totalSec(d)).toFixed(1)}</td><td>${s.topEc||''}</td><td>${s.temp||''}</td><td>${s.shade||''}</td><td>${s.plantState||''}</td><td>${d.quality?.harvestKg||''}</td><td>${d.quality?.brix||''}</td></tr>`}).join('');
+}
+
+$('editSchedule').onclick=()=>{
+ const d=ensureDay(TODAY),raw=prompt('「07:00,30 / 09:30,30」の形式で入力',d.schedule.map(s=>`${s.time},${s.seconds}`).join(' / '));
+ if(!raw)return;
+ try{const arr=raw.split('/').map(x=>{const [time,sec]=x.trim().split(',');return {time:time.trim(),seconds:Number(sec),zone:'上部'}}).filter(x=>x.time&&x.seconds);d.schedule=arr;setDay(TODAY,d);renderAll()}catch{alert('入力形式を確認してください')}
+}
+$('addSlot').onclick=()=>{
+ const time=prompt('追加する時刻（例 14:00）');if(!time)return;const sec=Number(prompt('秒数','20'));if(!sec)return;const d=ensureDay(TODAY);d.schedule.push({time,seconds:sec,zone:'上部'});setDay(TODAY,d);renderAll()
+}
+$('copyYesterday').onclick=()=>{const y=new Date();y.setDate(y.getDate()-1);const yd=load().days[todayStr(y)],d=ensureDay(TODAY);d.schedule=yd?.schedule?.length?yd.schedule.map(x=>({...x})):defaultSchedule();setDay(TODAY,d);renderAll()}
+
+function loadSettingsUI(){const s=load().settings;$('plantCount').value=s.plantCount;$('mlPer60').value=s.mlPer60;$('hotThreshold').value=s.hotThreshold;$('rainSecThreshold').value=s.rainSecThreshold}
+$('saveSettings').onclick=()=>{const db=load();db.settings.plantCount=Number($('plantCount').value)||0;db.settings.mlPer60=Number($('mlPer60').value)||25;save(db);renderAll()}
+$('saveThresholds').onclick=()=>{const db=load();db.settings.hotThreshold=Number($('hotThreshold').value)||36;db.settings.rainSecThreshold=Number($('rainSecThreshold').value)||90;save(db);renderAll()}
+
+function download(name,content,type){const blob=new Blob([content],{type}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;a.click();URL.revokeObjectURL(u)}
+$('exportJson').onclick=()=>download('Dファーム_栽培管理PRO_backup.json',JSON.stringify(load(),null,2),'application/json')
+$('exportCsv').onclick=()=>{
+ const db=load(),rows=[['日付','時刻','秒数','区分','mL/株','総L','天候','温度','遮光','上部EC','下部EC','株状態','葉露','風','日射','収穫kg','Brix','メモ']];
+ Object.keys(db.days).sort().forEach(date=>{const d=db.days[date],s=d.state,logs=d.logs.length?d.logs:[{}];logs.forEach(l=>rows.push([date,l.time||'',l.seconds||'',l.zone||'',l.seconds?mlPerPlant(l.seconds).toFixed(1):'',l.seconds?totalLiters(l.seconds).toFixed(1):'',s.weather||'',s.temp||'',s.shade||'',s.topEc||'',s.bottomEc||'',s.plantState||'',s.dew||'',s.wind||'',s.sun||'',d.quality?.harvestKg||'',d.quality?.brix||'',s.memo||'']))});
+ const csv='\uFEFF'+rows.map(r=>r.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(',')).join('\n');download('Dファーム_栽培管理PRO.csv',csv,'text/csv;charset=utf-8')
+}
+$('importJson').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!x.settings||!x.days)throw 0;localStorage.setItem(KEY,JSON.stringify(x));renderAll();loadSettingsUI();alert('バックアップを読み込みました')}catch{alert('バックアップ形式が不正です')}};r.readAsText(f)}
+
+function xmlEscape(v){
+ return String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+}
+function exportExcelWorkbook(){
+ const db=load();
+ const headers=['日付','時刻','給液秒数','区分','mL/株','総給液L','天候','ハウス温度℃','遮光','上部EC','下部EC','株状態','葉露','風','日射','収穫kg','糖度Brix','観察メモ'];
+ let rows=[];
+ Object.keys(db.days).sort().forEach(date=>{
+   const d=db.days[date],s=d.state||{},logs=(d.logs&&d.logs.length)?d.logs:[{}];
+   logs.forEach(l=>rows.push([
+     date,l.time||'',l.seconds||'',l.zone||'',
+     l.seconds?mlPerPlant(l.seconds).toFixed(1):'',
+     l.seconds?totalLiters(l.seconds).toFixed(1):'',
+     s.weather||'',s.temp||'',s.shade||'',s.topEc||'',s.bottomEc||'',
+     s.plantState||'',s.dew||'',s.wind||'',s.sun||'',
+     d.quality?.harvestKg||'',d.quality?.brix||'',s.memo||''
+   ]));
+ });
+ const cell=(v,type='String')=>`<Cell><Data ss:Type="${type}">${xmlEscape(v)}</Data></Cell>`;
+ let xml='<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>';
+ xml+='<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">';
+ xml+='<Styles><Style ss:ID="Header"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#17643A" ss:Pattern="Solid"/></Style></Styles>';
+ xml+='<Worksheet ss:Name="栽培記録"><Table>';
+ xml+='<Row>'+headers.map(h=>`<Cell ss:StyleID="Header"><Data ss:Type="String">${xmlEscape(h)}</Data></Cell>`).join('')+'</Row>';
+ rows.forEach(r=>{xml+='<Row>'+r.map((v,i)=>cell(v,([2,4,5,7,9,10,15,16].includes(i)&&v!==''?'Number':'String'))).join('')+'</Row>'});
+ xml+='</Table></Worksheet>';
+ // Daily summary sheet
+ xml+='<Worksheet ss:Name="日別集計"><Table>';
+ const sumHeaders=['日付','給液合計秒','mL/株','総給液L','上部EC','下部EC','温度℃','遮光','株状態','収穫kg','糖度Brix'];
+ xml+='<Row>'+sumHeaders.map(h=>`<Cell ss:StyleID="Header"><Data ss:Type="String">${xmlEscape(h)}</Data></Cell>`).join('')+'</Row>';
+ Object.keys(db.days).sort().forEach(date=>{
+   const d=db.days[date],s=d.state||{},sec=totalSec(d);
+   const r=[date,sec,mlPerPlant(sec).toFixed(1),totalLiters(sec).toFixed(1),s.topEc||'',s.bottomEc||'',s.temp||'',s.shade||'',s.plantState||'',d.quality?.harvestKg||'',d.quality?.brix||''];
+   xml+='<Row>'+r.map((v,i)=>cell(v,([1,2,3,4,5,6,9,10].includes(i)&&v!==''?'Number':'String'))).join('')+'</Row>';
+ });
+ xml+='</Table></Worksheet></Workbook>';
+ download('Dファーム_栽培管理_'+TODAY+'.xls',xml,'application/vnd.ms-excel');
+}
+function dayReportHtml(date){
+ const db=load(),d=db.days[date]||dayTemplate(),s=d.state||{},sec=totalSec(d);
+ const logs=(d.logs||[]).slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+ const ev=d.events||[];
+ return `
+ <div class="print-title">Dファーム 栽培日報</div>
+ <div class="print-sub">${date}　栽培管理PRO 出力</div>
+ <div class="print-grid">
+  <div class="print-kpi">給液合計<b>${sec} 秒</b></div>
+  <div class="print-kpi">給液量/株<b>${mlPerPlant(sec).toFixed(1)} mL</b></div>
+  <div class="print-kpi">総給液量<b>${totalLiters(sec).toFixed(1)} L</b></div>
+  <div class="print-kpi">上部EC<b>${s.topEc||'-'}</b></div>
+ </div>
+ <div class="print-section">環境・株状態</div>
+ <table class="print-table">
+  <tr><th>天候</th><td>${xmlEscape(s.weather||'')}</td><th>温度</th><td>${xmlEscape(s.temp||'')} ℃</td></tr>
+  <tr><th>遮光</th><td>${xmlEscape(s.shade||'')}</td><th>下部EC</th><td>${xmlEscape(s.bottomEc||'')}</td></tr>
+  <tr><th>株状態</th><td>${xmlEscape(s.plantState||'')}</td><th>葉露</th><td>${xmlEscape(s.dew||'')}</td></tr>
+  <tr><th>風</th><td>${xmlEscape(s.wind||'')}</td><th>日射</th><td>${xmlEscape(s.sun||'')}</td></tr>
+  <tr><th>収穫</th><td>${xmlEscape(d.quality?.harvestKg||'')} kg</td><th>糖度</th><td>${xmlEscape(d.quality?.brix||'')} Brix</td></tr>
+ </table>
+ <div class="print-section">給液実績</div>
+ <table class="print-table"><thead><tr><th>時刻</th><th>秒数</th><th>区分</th><th>mL/株</th><th>総L</th></tr></thead><tbody>
+ ${logs.length?logs.map(l=>`<tr><td>${xmlEscape(l.time||'')}</td><td>${l.seconds||''}</td><td>${xmlEscape(l.zone||'')}</td><td>${mlPerPlant(l.seconds||0).toFixed(1)}</td><td>${totalLiters(l.seconds||0).toFixed(1)}</td></tr>`).join(''):'<tr><td colspan="5">記録なし</td></tr>'}
+ </tbody></table>
+ <div class="print-section">栽培イベント</div>
+ <table class="print-table"><thead><tr><th>時刻</th><th>種類</th><th>内容</th></tr></thead><tbody>
+ ${ev.length?ev.map(e=>`<tr><td>${xmlEscape(e.time||'')}</td><td>${xmlEscape(e.type||'')}</td><td>${xmlEscape(e.text||'')}</td></tr>`).join(''):'<tr><td colspan="3">記録なし</td></tr>'}
+ </tbody></table>
+ <div class="print-section">観察メモ</div>
+ <table class="print-table"><tr><td>${xmlEscape(s.memo||'')}</td></tr></table>`;
+}
+function printDailyReport(){
+ $('printArea').innerHTML=dayReportHtml(TODAY);
+ window.print();
+}
+function printMonthlyReport(){
+ const db=load(),month=TODAY.slice(0,7),dates=Object.keys(db.days).filter(d=>d.startsWith(month)).sort();
+ let totalSeconds=0,totalHarvest=0,brixVals=[];
+ dates.forEach(date=>{
+   const d=db.days[date]; totalSeconds+=totalSec(d);
+   totalHarvest+=Number(d.quality?.harvestKg||0);
+   if(d.quality?.brix!=='') brixVals.push(Number(d.quality?.brix||0));
+ });
+ const avgBrix=brixVals.length?(brixVals.reduce((a,b)=>a+b,0)/brixVals.length).toFixed(1):'-';
+ $('printArea').innerHTML=`
+  <div class="print-title">Dファーム 栽培月報</div>
+  <div class="print-sub">${month}　栽培管理PRO 月次集計</div>
+  <div class="print-grid">
+   <div class="print-kpi">給液合計<b>${totalSeconds} 秒</b></div>
+   <div class="print-kpi">総給液量<b>${totalLiters(totalSeconds).toFixed(1)} L</b></div>
+   <div class="print-kpi">収穫合計<b>${totalHarvest.toFixed(1)} kg</b></div>
+   <div class="print-kpi">平均糖度<b>${avgBrix}</b></div>
+  </div>
+  <div class="print-section">日別一覧</div>
+  <table class="print-table"><thead><tr><th>日付</th><th>給液秒</th><th>mL/株</th><th>総L</th><th>温度</th><th>上部EC</th><th>遮光</th><th>株状態</th><th>収穫kg</th><th>Brix</th></tr></thead><tbody>
+  ${dates.map(date=>{const d=db.days[date],s=d.state||{},sec=totalSec(d);return `<tr><td>${date}</td><td>${sec}</td><td>${mlPerPlant(sec).toFixed(1)}</td><td>${totalLiters(sec).toFixed(1)}</td><td>${xmlEscape(s.temp||'')}</td><td>${xmlEscape(s.topEc||'')}</td><td>${xmlEscape(s.shade||'')}</td><td>${xmlEscape(s.plantState||'')}</td><td>${xmlEscape(d.quality?.harvestKg||'')}</td><td>${xmlEscape(d.quality?.brix||'')}</td></tr>`}).join('')}
+  </tbody></table>`;
+ window.print();
+}
+$('exportExcel').onclick=exportExcelWorkbook;
+$('printDaily').onclick=printDailyReport;
+$('printMonthly').onclick=printMonthlyReport;
+
+$('resetAll').onclick=()=>{if(confirm('全データを削除します。元に戻せません。')){localStorage.removeItem(KEY);ensureDay(TODAY);renderAll();loadSettingsUI()}}
+
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(b.dataset.page).classList.add('active');if(b.dataset.page==='analysisPage')renderAnalysis()})
+document.querySelectorAll('.range').forEach(b=>b.onclick=()=>{document.querySelectorAll('.range').forEach(x=>{x.classList.remove('primary');x.classList.add('ghost')});b.classList.remove('ghost');b.classList.add('primary');renderHistory(Number(b.dataset.range))})
+
+function renderAll(){renderToday();renderLogs();renderHistory(7);renderAnalysis();loadSettingsUI();renderZeusMemo()}
+$('recDate').value=TODAY;$('recTime').value=nowTime();renderAll();
+</script>
+<script>
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}))}
+</script><script>
+
+function buildZeusPrompt(){
+ const db=load();
+ const d=ensureDay(TODAY), s=d.state||{};
+ const y=new Date(); y.setDate(y.getDate()-1);
+ const yDate=todayStr(y), yd=db.days[yDate];
+ const todayLogs=(d.logs||[]).slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+ const planned=(d.schedule||[]).slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+ const todayLogText=todayLogs.length?todayLogs.map(l=>`${l.time||''} ${l.zone||''} ${l.seconds||0}秒`).join(' / '):'なし';
+ const planText=planned.length?planned.map(x=>`${x.time} ${x.zone} ${x.seconds}秒`).join(' / '):'なし';
+ const yText=yd?`前日給液合計 ${totalSec(yd)}秒、天候 ${yd.state?.weather||'未記録'}、株状態 ${yd.state?.plantState||'未記録'}`:'前日記録なし';
+ return `Dファーム トマト栽培管理相談
+
+【今日 ${TODAY}】
+天候：${s.weather||'未記録'}
+ハウス温度：${s.temp||'未記録'}℃
+遮光：${s.shade||'未記録'}
+上部EC：${s.topEc||'未記録'}
+下部EC：${s.bottomEc||'未記録'}
+株状態：${s.plantState||'未記録'}
+葉露：${s.dew||'未記録'}
+風：${s.wind||'未記録'}
+日射：${s.sun||'未記録'}
+観察メモ：${s.memo||'なし'}
+
+今日の予定：${planText}
+今日の実績：${todayLogText}
+給液合計：${totalSec(d)}秒
+給液量：${mlPerPlant(totalSec(d)).toFixed(1)}mL/株、総量${totalLiters(totalSec(d)).toFixed(1)}L
+
+【前日】
+${yText}
+
+最高金賞レベルの果実品質を目標に、収量だけでなく食味・糖度・樹勢バランスを重視して判断してください。
+回答は「前回確定値／今回実測／今回提案」に分け、今日これからの給液・EC・遮光・確認ポイントを具体的に示してください。`;
+}
+async function copyZeusPrompt(){
+ const text=buildZeusPrompt();
+ try{
+   await navigator.clipboard.writeText(text);
+   document.getElementById('zeusStatus').textContent='相談文をコピーしました。ChatGPTに貼り付けてください。';
+ }catch{
+   const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+   document.getElementById('zeusStatus').textContent='相談文をコピーしました。';
+ }
+}
+if(document.getElementById('copyZeus')) document.getElementById('copyZeus').onclick=copyZeusPrompt;
+if(document.getElementById('askZeus')) document.getElementById('askZeus').onclick=async()=>{
+ await copyZeusPrompt();
+ window.open('https://chatgpt.com/','_blank');
+};
+if(document.getElementById('saveZeusMemo')) document.getElementById('saveZeusMemo').onclick=()=>{
+ const d=ensureDay(TODAY); d.zeusAdvice=document.getElementById('zeusAdviceMemo').value; setDay(TODAY,d);
+ document.getElementById('zeusStatus').textContent='ゼウスの提案を今日の記録に保存しました。';
+};
+function renderZeusMemo(){
+ const d=ensureDay(TODAY);
+ if(document.getElementById('zeusAdviceMemo')) document.getElementById('zeusAdviceMemo').value=d.zeusAdvice||'';
+}
+
+
+// --- 写真→ゼウス診断 ---
+const PHOTO_DB='DFarmPhotoDB', PHOTO_STORE='photos';
+function openPhotoDB(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(PHOTO_DB,1);
+    req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains(PHOTO_STORE))db.createObjectStore(PHOTO_STORE,{keyPath:'date'})};
+    req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error);
+  });
+}
+async function saveTodayPhoto(file){
+  const db=await openPhotoDB();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(PHOTO_STORE,'readwrite');
+    tx.objectStore(PHOTO_STORE).put({date:TODAY,file,name:file.name,type:file.type,ts:Date.now()});
+    tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error);
+  });
+}
+async function getTodayPhoto(){
+  const db=await openPhotoDB();
+  return new Promise((resolve,reject)=>{
+    const req=db.transaction(PHOTO_STORE,'readonly').objectStore(PHOTO_STORE).get(TODAY);
+    req.onsuccess=()=>resolve(req.result||null); req.onerror=()=>reject(req.error);
+  });
+}
+async function deleteTodayPhoto(){
+  const db=await openPhotoDB();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(PHOTO_STORE,'readwrite');tx.objectStore(PHOTO_STORE).delete(TODAY);
+    tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);
+  });
+}
+async function renderTodayPhoto(){
+  if(!document.getElementById('zeusPhotoWrap'))return;
+  const rec=await getTodayPhoto().catch(()=>null);
+  const wrap=document.getElementById('zeusPhotoWrap');
+  if(!rec){wrap.classList.add('hidden');return}
+  const img=document.getElementById('zeusPhotoPreview');
+  img.src=URL.createObjectURL(rec.file);
+  document.getElementById('zeusPhotoDate').textContent='撮影記録：'+new Date(rec.ts).toLocaleString('ja-JP');
+  wrap.classList.remove('hidden');
+}
+const photoBtn=document.getElementById('photoZeusBtn');
+const photoInput=document.getElementById('zeusPhotoInput');
+if(photoBtn)photoBtn.onclick=()=>photoInput.click();
+if(photoInput)photoInput.onchange=async e=>{
+  const file=e.target.files?.[0]; if(!file)return;
+  await saveTodayPhoto(file);
+  document.getElementById('zeusStatus').textContent='写真を保存しました。「この写真でゼウスに送る」を押してください。';
+  await renderTodayPhoto();
+};
+if(document.getElementById('deleteZeusPhoto'))document.getElementById('deleteZeusPhoto').onclick=async()=>{
+  await deleteTodayPhoto();await renderTodayPhoto();
+  document.getElementById('zeusStatus').textContent='今日の写真を削除しました。';
+};
+if(document.getElementById('sharePhotoZeus'))document.getElementById('sharePhotoZeus').onclick=async()=>{
+  const rec=await getTodayPhoto().catch(()=>null);
+  if(!rec){alert('先に写真を撮ってください');return}
+  const prompt=buildZeusPrompt()+`
+
+【写真診断】
+添付写真から、葉の張り・垂れ・徒長・葉色・生長点・開花位置・高温/水分ストレスの兆候を確認してください。
+写真だけで断定できない点は「未確認」としてください。
+最後に「今すぐやること」「次回給液」「今日の確認ポイント」を3項目で出してください。`;
+  try{
+    if(navigator.canShare && navigator.canShare({files:[rec.file]})){
+      await navigator.share({
+        title:'Dファーム ゼウス診断',
+        text:prompt,
+        files:[rec.file]
+      });
+      document.getElementById('zeusStatus').textContent='共有画面が開きました。ChatGPTを選んで送ってください。';
+    }else{
+      await navigator.clipboard.writeText(prompt);
+      window.open('https://chatgpt.com/','_blank');
+      document.getElementById('zeusStatus').textContent='相談文をコピーしました。ChatGPTで写真を添付して貼り付けてください。';
+    }
+  }catch(err){
+    if(err?.name!=='AbortError'){
+      try{await navigator.clipboard.writeText(prompt)}catch{}
+      window.open('https://chatgpt.com/','_blank');
+    }
+  }
+};
+setTimeout(()=>renderTodayPhoto(),50);
+
+
+// --- セキュア運用 ---
+const SEC_KEY='dfarm_security_v1';
+let lockTimer=null;
+
+async function sha256Text(text){
+  const data=new TextEncoder().encode(text);
+  const hash=await crypto.subtle.digest('SHA-256',data);
+  return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function secLoad(){try{return JSON.parse(localStorage.getItem(SEC_KEY))||{pinHash:'',autoLock:5}}catch{return {pinHash:'',autoLock:5}}}
+function secSave(v){localStorage.setItem(SEC_KEY,JSON.stringify(v))}
+function showLock(){
+  const s=secLoad();
+  if(!s.pinHash)return;
+  document.getElementById('appLock').style.display='flex';
+  document.getElementById('unlockPin').value='';
+  document.getElementById('unlockMsg').textContent='';
+}
+function hideLock(){document.getElementById('appLock').style.display='none';resetAutoLock()}
+function resetAutoLock(){
+  if(lockTimer)clearTimeout(lockTimer);
+  const s=secLoad();
+  if(!s.pinHash)return;
+  lockTimer=setTimeout(showLock,(Number(s.autoLock)||5)*60*1000);
+}
+['click','touchstart','keydown'].forEach(ev=>document.addEventListener(ev,resetAutoLock,{passive:true}));
+document.addEventListener('visibilitychange',()=>{if(document.hidden)showLock()});
+
+if(document.getElementById('unlockBtn')) document.getElementById('unlockBtn').onclick=async()=>{
+  const pin=document.getElementById('unlockPin').value;
+  const h=await sha256Text(pin);
+  if(h===secLoad().pinHash) hideLock();
+  else document.getElementById('unlockMsg').textContent='PINが違います';
+};
+
+if(document.getElementById('saveSecurity')) document.getElementById('saveSecurity').onclick=async()=>{
+  const pin=document.getElementById('setPin').value.trim();
+  if(!/^\d{4,12}$/.test(pin)){alert('PINは4〜12桁の数字にしてください');return}
+  const s=secLoad(); s.pinHash=await sha256Text(pin); s.autoLock=Number(document.getElementById('autoLockMinutes').value)||5;
+  secSave(s); document.getElementById('setPin').value=''; alert('PINを設定しました'); resetAutoLock();
+};
+if(document.getElementById('lockNow')) document.getElementById('lockNow').onclick=showLock;
+
+(function initSecurityUI(){
+  const s=secLoad();
+  if(document.getElementById('autoLockMinutes'))document.getElementById('autoLockMinutes').value=String(s.autoLock||5);
+  if(s.pinHash)setTimeout(showLock,120);
+})();
+
+// --- 暗号化バックアップ AES-GCM + PBKDF2 ---
+function bytesToB64(bytes){return btoa(String.fromCharCode(...bytes))}
+function b64ToBytes(s){return Uint8Array.from(atob(s),c=>c.charCodeAt(0))}
+async function deriveKey(pass,salt){
+  const material=await crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:250000,hash:'SHA-256'},material,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+async function collectBackupPayload(){
+  const photoRec=await getTodayPhoto().catch(()=>null);
+  let photo=null;
+  if(photoRec){
+    const buf=await photoRec.file.arrayBuffer();
+    photo={date:photoRec.date,name:photoRec.name,type:photoRec.type,ts:photoRec.ts,data:bytesToB64(new Uint8Array(buf))};
+  }
+  return {version:1,createdAt:new Date().toISOString(),appData:load(),todayPhoto:photo};
+}
+if(document.getElementById('exportEncrypted'))document.getElementById('exportEncrypted').onclick=async()=>{
+  const pass=document.getElementById('backupPass').value;
+  if(pass.length<8){alert('バックアップ用パスフレーズは8文字以上にしてください');return}
+  const payload=await collectBackupPayload();
+  const salt=crypto.getRandomValues(new Uint8Array(16));
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const key=await deriveKey(pass,salt);
+  const plain=new TextEncoder().encode(JSON.stringify(payload));
+  const cipher=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,plain));
+  const out={format:'DFARM-ENC-1',salt:bytesToB64(salt),iv:bytesToB64(iv),cipher:bytesToB64(cipher)};
+  download(`Dファーム_暗号化バックアップ_${TODAY}.dfarm`,JSON.stringify(out),'application/octet-stream');
+};
+if(document.getElementById('importEncrypted'))document.getElementById('importEncrypted').onchange=async e=>{
+  const file=e.target.files?.[0]; if(!file)return;
+  const pass=document.getElementById('backupPass').value;
+  if(pass.length<8){alert('復元用パスフレーズを入力してください');return}
+  try{
+    const enc=JSON.parse(await file.text());
+    if(enc.format!=='DFARM-ENC-1')throw new Error('format');
+    const salt=b64ToBytes(enc.salt),iv=b64ToBytes(enc.iv),cipher=b64ToBytes(enc.cipher);
+    const key=await deriveKey(pass,salt);
+    const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv},key,cipher);
+    const payload=JSON.parse(new TextDecoder().decode(plain));
+    localStorage.setItem(KEY,JSON.stringify(payload.appData));
+    if(payload.todayPhoto){
+      const p=payload.todayPhoto;
+      const blob=new Blob([b64ToBytes(p.data)],{type:p.type||'image/jpeg'});
+      const f=new File([blob],p.name||'photo.jpg',{type:p.type||'image/jpeg'});
+      await saveTodayPhoto(f);
+    }
+    renderAll(); await renderTodayPhoto(); alert('暗号化バックアップを復元しました');
+  }catch(err){alert('復元できません。パスフレーズまたはファイルを確認してください')}
+};
+
+// --- 超シンプル現場モード ---
+document.querySelectorAll('.quick-state').forEach(btn=>{
+  btn.onclick=()=>{
+    const d=ensureDay(TODAY);
+    d.state.plantState=btn.dataset.state;
+    setDay(TODAY,d);
+    document.getElementById('quickStateMsg').textContent='保存しました：'+btn.dataset.state;
+    renderAll();
+  };
+});
+const td=document.getElementById('toggleDetails');
+if(td){
+ td.onclick=()=>{
+   const box=document.getElementById('detailState');
+   box.classList.toggle('hidden');
+   td.textContent=box.classList.contains('hidden')?'開く':'閉じる';
+ };
+}
+document.querySelectorAll('.goto-page').forEach(b=>{
+ b.onclick=()=>{
+   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+   const p=document.getElementById(b.dataset.target); if(p)p.classList.add('active');
+   if(b.dataset.target==='analysisPage')renderAnalysis();
+ };
+});
+if(document.getElementById('exportExcel2')) document.getElementById('exportExcel2').onclick=()=>document.getElementById('exportExcel').click();
+if(document.getElementById('printDaily2')) document.getElementById('printDaily2').onclick=()=>document.getElementById('printDaily').click();
+if(document.getElementById('printMonthly2')) document.getElementById('printMonthly2').onclick=()=>document.getElementById('printMonthly').click();
+
+// 初回だけ簡単な案内
+if(!localStorage.getItem('dfarm_simple_seen')){
+  localStorage.setItem('dfarm_simple_seen','1');
+  setTimeout(()=>alert('Dファーム 現場モード\\n\\n1. 給液したら「実施」\\n2. 株を見て状態を1タップ\\n3. 必要な時だけ「記録」「その他」\\n\\n普段は「今日」画面だけでOKです。'),300);
+}
+</script>
+</body>
+</html>
