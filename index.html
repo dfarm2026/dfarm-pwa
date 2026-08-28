@@ -128,7 +128,8 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
  <div class="top">
   <div class="brand">Dファーム <small>栽培管理 PRO</small></div>
   <div class="grow"></div>
-  <span class="badge" id="saveBadge">● 保存済み</span>
+  <span class="badge" id="buildBadge">v3.1</span>
+   <span class="badge" id="saveBadge">● 保存済み</span>
   <button class="btn soft" id="quickBtn">＋給液</button>
  </div>
 </header>
@@ -401,6 +402,7 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
 
 <script>
 const $=id=>document.getElementById(id);
+const APP_VERSION='3.1.0';
 const KEY='dfarm_pro_v3';
 const DEFAULTS={settings:{plantCount:5100,mlPer60:25,hotThreshold:36,rainSecThreshold:90},days:{}};
 function todayStr(d=new Date()){const z=d.getTimezoneOffset();return new Date(d-z*60000).toISOString().slice(0,10)}
@@ -445,15 +447,21 @@ function renderToday(){
  d.schedule.slice().sort((a,b)=>a.time.localeCompare(b.time)).forEach((s,i)=>{
    const done=isDone(d,s);
    const div=document.createElement('div');div.className='slot'+(done?' done':'');
-   div.innerHTML=`<div class="time">${s.time}</div><div class="mid"><b>${s.zone} ${s.seconds}秒</b><small>${mlPerPlant(s.seconds).toFixed(1)}mL/株 ${done?'・実施済み':'・未実施'}</small></div><button class="btn ${done?'ghost':'primary'}" data-i="${i}">${done?'取消':'実施'}</button>`;
+   div.innerHTML=`<div class="time">${s.time}</div><div class="mid"><b>${s.zone} ${s.seconds}秒</b><small>${mlPerPlant(s.seconds).toFixed(1)}mL/株 ${done?'・実施済み':'・未実施'}</small></div><div style="display:flex;gap:6px"><button class="btn ${done?'ghost':'primary'} schedule-toggle" data-i="${i}">${done?'取消':'実施'}</button><button class="btn danger schedule-delete" data-i="${i}" style="padding:10px 11px">削除</button></div>`;
    list.appendChild(div);
  });
- list.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+ list.querySelectorAll('.schedule-toggle').forEach(b=>b.onclick=()=>{
    const d=ensureDay(TODAY);d.schedule.sort((a,b)=>a.time.localeCompare(b.time));const s=d.schedule[Number(b.dataset.i)];
    const idx=d.logs.findIndex(l=>l.source==='schedule'&&l.scheduleTime===s.time&&Number(l.seconds)===Number(s.seconds)&&l.zone===s.zone);
    if(idx<0)d.logs.push({time:nowTime(),seconds:Number(s.seconds),zone:s.zone,source:'schedule',scheduleTime:s.time});
    else d.logs.splice(idx,1);
    setDay(TODAY,d);renderAll();
+ });
+ list.querySelectorAll('.schedule-delete').forEach(b=>b.onclick=()=>{
+   const d=ensureDay(TODAY);d.schedule.sort((a,b)=>a.time.localeCompare(b.time));const i=Number(b.dataset.i),slot=d.schedule[i];
+   if(!slot)return;
+   if(!confirm(`${slot.time} ${slot.zone} ${slot.seconds}秒 の予定を削除しますか？\n※給液実績は残ります。`))return;
+   d.schedule.splice(i,1);setDay(TODAY,d);renderAll();
  });
  renderAdvice();
 }
@@ -489,7 +497,10 @@ $('quickBtn').onclick=()=>{document.querySelector('nav button[data-page="recordP
 $('addIrrigation').onclick=()=>{
  const date=$('recDate').value||TODAY,d=ensureDay(date),sec=Number($('recSec').value);
  if(!sec||sec<1)return alert('秒数を確認してください');
- d.logs.push({time:$('recTime').value||nowTime(),seconds:sec,zone:$('recZone').value,source:'manual'});setDay(date,d);renderAll()
+ const t=$('recTime').value||nowTime(),zone=$('recZone').value;
+ const duplicate=(d.logs||[]).some(l=>l.time===t&&Number(l.seconds)===sec&&l.zone===zone);
+ if(duplicate&&!confirm(`${t} ${zone} ${sec}秒 はすでに同じ記録があります。\nもう1件追加しますか？`))return;
+ d.logs.push({time:t,seconds:sec,zone,source:'manual'});setDay(date,d);renderAll()
 }
 $('addEvent').onclick=()=>{const t=$('eventText').value.trim();if(!t)return;const d=ensureDay(TODAY);d.events.push({time:nowTime(),type:$('eventType').value,text:t});setDay(TODAY,d);$('eventText').value='';renderAll()}
 $('saveQuality').onclick=()=>{const d=ensureDay(TODAY);d.quality={harvestKg:$('harvestKg').value,brix:$('brix').value};setDay(TODAY,d);renderAll()}
@@ -498,13 +509,19 @@ function renderLogs(){
  const d=ensureDay(TODAY),items=[];
  const sortedLogs=(d.logs||[]).map((l,i)=>({...l,_idx:i})).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
  sortedLogs.forEach(l=>items.push(`<div class="history"><div><div class="d">${l.time} 給液</div><div class="s">${l.zone}${l.source==='schedule'?'・予定実施':'・手動'}</div></div><div class="r"><b>${l.seconds}秒</b><div class="s">${mlPerPlant(l.seconds).toFixed(1)}mL/株</div><button class="btn danger log-delete" data-log-index="${l._idx}" style="margin-top:7px;padding:6px 10px;font-size:11px">削除</button></div></div>`));
- (d.events||[]).forEach(e=>items.push(`<div class="history"><div><div class="d">${e.time||''} ${e.type}</div><div class="s">${e.text}</div></div></div>`));
+ (d.events||[]).forEach((e,i)=>items.push(`<div class="history"><div><div class="d">${e.time||''} ${e.type}</div><div class="s">${e.text}</div></div><div class="r"><button class="btn danger event-delete" data-event-index="${i}" style="padding:6px 10px;font-size:11px">削除</button></div></div>`));
  $('todayLog').innerHTML=items.length?items.join(''):'<div class="small">まだ記録はありません。</div>';
  $('todayLog').querySelectorAll('.log-delete').forEach(btn=>btn.onclick=()=>{
    const idx=Number(btn.dataset.logIndex),cur=ensureDay(TODAY),log=cur.logs?.[idx];
    if(!log)return;
    if(!confirm(`${log.time||''} ${log.zone||''} ${log.seconds||0}秒 の給液記録を削除しますか？`))return;
    cur.logs.splice(idx,1);setDay(TODAY,cur);renderAll();
+ });
+ $('todayLog').querySelectorAll('.event-delete').forEach(btn=>btn.onclick=()=>{
+   const idx=Number(btn.dataset.eventIndex),cur=ensureDay(TODAY),ev=cur.events?.[idx];
+   if(!ev)return;
+   if(!confirm(`${ev.time||''} ${ev.type||''}「${ev.text||''}」を削除しますか？`))return;
+   cur.events.splice(idx,1);setDay(TODAY,cur);renderAll();
  });
  $('harvestKg').value=d.quality.harvestKg||'';$('brix').value=d.quality.brix||'';
 }
@@ -691,7 +708,7 @@ function renderAll(){renderToday();renderLogs();renderHistory(7);renderAnalysis(
 $('recDate').value=TODAY;$('recTime').value=nowTime();renderAll();
 </script>
 <script>
-if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}))}
+if('serviceWorker' in navigator){window.addEventListener('load',async()=>{try{const regs=await navigator.serviceWorker.getRegistrations();for(const r of regs)await r.unregister();if('caches' in window){for(const k of await caches.keys())await caches.delete(k)}}catch(e){}})}
 </script><script>
 
 function buildZeusPrompt(){
