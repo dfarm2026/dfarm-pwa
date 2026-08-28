@@ -141,7 +141,7 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
  <div class="top">
   <div class="brand">Dファーム <small>栽培管理 PRO</small></div>
   <div class="grow"></div>
-  <span class="badge" id="buildBadge">v3.3</span>
+  <span class="badge" id="buildBadge">v3.4</span>
    <span class="badge" id="saveBadge">● 保存済み</span>
   <button class="btn soft" id="quickBtn">＋給液</button>
  </div>
@@ -440,14 +440,57 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
 
 <script>
 const $=id=>document.getElementById(id);
-const APP_VERSION='3.1.0';
+const APP_VERSION='3.4.0';
 const KEY='dfarm_pro_v3';
+const RECOVERY_KEY='dfarm_pro_v3_last_recovery';
+const INTEGRITY_VERSION=4;
 const DEFAULTS={settings:{plantCount:5100,mlPer60:25,hotThreshold:36,rainSecThreshold:90},days:{}};
 function todayStr(d=new Date()){const z=d.getTimezoneOffset();return new Date(d-z*60000).toISOString().slice(0,10)}
 function nowTime(){const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}
 function jpDate(d=new Date()){return new Intl.DateTimeFormat('ja-JP',{year:'numeric',month:'long',day:'numeric',weekday:'short'}).format(d)}
-function load(){try{const x=JSON.parse(localStorage.getItem(KEY));return x&&x.settings&&x.days?x:structuredClone(DEFAULTS)}catch{return structuredClone(DEFAULTS)}}
-function save(db){localStorage.setItem(KEY,JSON.stringify(db));flashSaved()}
+function makeId(prefix='id'){return prefix+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9)}
+function slotKey(x){return `${x?.time||''}|${Number(x?.seconds||0)}|${x?.zone||''}`}
+function normalizeDB(input){
+ const db=(input&&typeof input==='object')?input:structuredClone(DEFAULTS);
+ db.settings={...DEFAULTS.settings,...(db.settings||{})};
+ db.days=(db.days&&typeof db.days==='object')?db.days:{};
+ Object.entries(db.days).forEach(([date,d0])=>{
+   const d=(d0&&typeof d0==='object')?d0:dayTemplate(); db.days[date]=d;
+   d.state={...dayTemplate().state,...(d.state||{})}; d.schedule=Array.isArray(d.schedule)?d.schedule:[]; d.logs=Array.isArray(d.logs)?d.logs:[];
+   d.events=Array.isArray(d.events)?d.events:[]; d.stateLogs=Array.isArray(d.stateLogs)?d.stateLogs:[];
+   d.quality={harvestKg:'',brix:'',...(d.quality||{})}; d.zeusAdvice=d.zeusAdvice||'';
+   d.schedule.forEach((s,i)=>{s.time=String(s.time||'');s.seconds=Number(s.seconds||0);s.zone=s.zone||'上部';if(!s.id)s.id=`slot_${date}_${i}_${s.time.replace(':','')}_${s.seconds}_${s.zone}`});
+   d.logs=d.logs.filter(l=>l&&Number(l.seconds||0)>0).map(l=>({...l,seconds:Number(l.seconds||0),zone:l.zone||'上部',id:l.id||makeId('log')}));
+   const remove=new Set(),claimed=new Set();
+   d.schedule.forEach(s=>{
+     const explicit=[];
+     d.logs.forEach((l,i)=>{if(l.scheduleId===s.id || (l.source==='schedule'&&l.scheduleTime===s.time&&Number(l.seconds)===Number(s.seconds)&&l.zone===s.zone))explicit.push(i)});
+     const legacy=d.logs.findIndex((l,i)=>!claimed.has(i)&&!remove.has(i)&&l.source!=='schedule'&&!l.scheduleId&&l.time===s.time&&Number(l.seconds)===Number(s.seconds)&&l.zone===s.zone);
+     if(legacy>=0){
+       claimed.add(legacy); const l=d.logs[legacy]; l.source='schedule';l.scheduleId=s.id;l.scheduleTime=s.time;l.actualTime=l.actualTime||l.time;
+       explicit.forEach(i=>{if(i!==legacy)remove.add(i)});
+     }else if(explicit.length){
+       const keep=explicit[0];claimed.add(keep);const l=d.logs[keep];l.source='schedule';l.scheduleId=s.id;l.scheduleTime=s.time;l.actualTime=l.actualTime||l.time;
+       explicit.slice(1).forEach(i=>remove.add(i));
+     }
+   });
+   d.logs=d.logs.filter((l,i)=>!remove.has(i));
+   const slotIds=new Set(d.schedule.map(s=>s.id));
+   d.logs.forEach(l=>{if(l.source==='schedule'&&l.scheduleId&&!slotIds.has(l.scheduleId)){l.source='manual';delete l.scheduleId;delete l.scheduleTime}});
+   d.integrityVersion=INTEGRITY_VERSION;
+ });
+ return db;
+}
+function load(){
+ try{
+   const raw=localStorage.getItem(KEY); if(!raw)return structuredClone(DEFAULTS);
+   const parsed=JSON.parse(raw); if(!parsed||!parsed.settings||!parsed.days)return structuredClone(DEFAULTS);
+   const before=JSON.stringify(parsed),fixed=normalizeDB(parsed),after=JSON.stringify(fixed);
+   if(before!==after){try{localStorage.setItem(RECOVERY_KEY,before)}catch{} localStorage.setItem(KEY,after)}
+   return fixed;
+ }catch{return structuredClone(DEFAULTS)}
+}
+function save(db){const fixed=normalizeDB(db);localStorage.setItem(KEY,JSON.stringify(fixed));flashSaved()}
 function flashSaved(){const b=$('saveBadge');b.textContent='● 保存済み';setTimeout(()=>b.textContent='● 保存済み',400)}
 function dayTemplate(){return {state:{weather:'晴れ',temp:'',shade:'なし',topEc:'0.9',bottomEc:'1.0',plantState:'良好',dew:'なし',wind:'弱い',sun:'普通',flower:'変化なし',memo:''},schedule:[],logs:[],events:[],stateLogs:[],quality:{harvestKg:'',brix:''},zeusAdvice:''}}
 function ensureDay(date){const db=load();if(!db.days[date])db.days[date]=dayTemplate();const d=db.days[date];d.logs=d.logs||[];d.events=d.events||[];d.stateLogs=d.stateLogs||[];d.quality=d.quality||{harvestKg:'',brix:''};d.state=d.state||dayTemplate().state;save(db);return d}
@@ -462,7 +505,7 @@ function totalSec(d){return (d.logs||[]).reduce((a,x)=>a+Number(x.seconds||0),0)
 function plannedSec(d){return (d.schedule||[]).reduce((a,x)=>a+Number(x.seconds||0),0)}
 function mlPerPlant(seconds){const s=load().settings;return seconds*(Number(s.mlPer60)||25)/60}
 function totalLiters(seconds){const s=load().settings;return mlPerPlant(seconds)*(Number(s.plantCount)||0)/1000}
-function isDone(d,s){return (d.logs||[]).some(l=>l.source==='schedule'&&l.scheduleTime===s.time&&Number(l.seconds)===Number(s.seconds)&&l.zone===s.zone)}
+function isDone(d,s){return (d.logs||[]).some(l=>(l.scheduleId&&l.scheduleId===s.id)||(l.source==='schedule'&&l.scheduleTime===s.time&&Number(l.seconds)===Number(s.seconds)&&l.zone===s.zone))}
 const TODAY=todayStr();ensureDay(TODAY);
 
 function renderToday(){
@@ -485,15 +528,23 @@ function renderToday(){
  d.schedule.slice().sort((a,b)=>a.time.localeCompare(b.time)).forEach((s,i)=>{
    const done=isDone(d,s);
    const div=document.createElement('div');div.className='slot'+(done?' done':'');
-   div.innerHTML=`<div class="time">${s.time}</div><div class="mid"><b>${s.zone} ${s.seconds}秒</b><small>${mlPerPlant(s.seconds).toFixed(1)}mL/株 ${done?'・実施済み':'・未実施'}</small></div><div style="display:flex;gap:6px"><button class="btn ${done?'ghost':'primary'} schedule-toggle" data-i="${i}">${done?'取消':'実施'}</button><button class="btn danger schedule-delete" data-i="${i}" style="padding:10px 11px">削除</button></div>`;
+   div.innerHTML=`<div class="time">${s.time}</div><div class="mid"><b>${s.zone} ${s.seconds}秒</b><small>${mlPerPlant(s.seconds).toFixed(1)}mL/株 ${done?'・実施済み':'・未実施'}</small></div><div style="display:flex;gap:6px">${done?`<button class="btn ghost" disabled>実施済み</button><button class="btn ghost schedule-cancel" data-i="${i}">取消</button>`:`<button class="btn primary schedule-do" data-i="${i}">実施</button>`}<button class="btn danger schedule-delete" data-i="${i}" style="padding:10px 11px">削除</button></div>`;
    list.appendChild(div);
  });
- list.querySelectorAll('.schedule-toggle').forEach(b=>b.onclick=()=>{
+ list.querySelectorAll('.schedule-do').forEach(b=>b.onclick=()=>{
+   if(b.disabled)return;b.disabled=true;
    const d=ensureDay(TODAY);d.schedule.sort((a,b)=>a.time.localeCompare(b.time));const s=d.schedule[Number(b.dataset.i)];
-   const idx=d.logs.findIndex(l=>l.source==='schedule'&&l.scheduleTime===s.time&&Number(l.seconds)===Number(s.seconds)&&l.zone===s.zone);
-   if(idx<0)d.logs.push({time:nowTime(),seconds:Number(s.seconds),zone:s.zone,source:'schedule',scheduleTime:s.time});
-   else d.logs.splice(idx,1);
+   if(!s||isDone(d,s)){renderAll();return}
+   const legacy=d.logs.find(l=>l.source!=='schedule'&&!l.scheduleId&&l.time===s.time&&Number(l.seconds)===Number(s.seconds)&&l.zone===s.zone);
+   if(legacy){legacy.source='schedule';legacy.scheduleId=s.id;legacy.scheduleTime=s.time;legacy.actualTime=legacy.actualTime||legacy.time}
+   else d.logs.push({id:makeId('log'),time:nowTime(),actualTime:nowTime(),seconds:Number(s.seconds),zone:s.zone,source:'schedule',scheduleId:s.id,scheduleTime:s.time});
    setDay(TODAY,d);renderAll();
+ });
+ list.querySelectorAll('.schedule-cancel').forEach(b=>b.onclick=()=>{
+   const d=ensureDay(TODAY);d.schedule.sort((a,b)=>a.time.localeCompare(b.time));const s=d.schedule[Number(b.dataset.i)];if(!s)return;
+   if(!confirm(`${s.time} ${s.zone} ${s.seconds}秒 の実施記録を取り消しますか？`))return;
+   const idx=d.logs.findIndex(l=>(l.scheduleId&&l.scheduleId===s.id)||(l.source==='schedule'&&l.scheduleTime===s.time&&Number(l.seconds)===Number(s.seconds)&&l.zone===s.zone));
+   if(idx>=0)d.logs.splice(idx,1);setDay(TODAY,d);renderAll();
  });
  list.querySelectorAll('.schedule-delete').forEach(b=>b.onclick=()=>{
    const d=ensureDay(TODAY);d.schedule.sort((a,b)=>a.time.localeCompare(b.time));const i=Number(b.dataset.i),slot=d.schedule[i];
@@ -631,7 +682,7 @@ $('exportCsv').onclick=()=>{
  Object.keys(db.days).sort().forEach(date=>{const d=db.days[date],s=d.state,logs=d.logs.length?d.logs:[{}];logs.forEach(l=>rows.push([date,l.time||'',l.seconds||'',l.zone||'',l.seconds?mlPerPlant(l.seconds).toFixed(1):'',l.seconds?totalLiters(l.seconds).toFixed(1):'',s.weather||'',s.temp||'',s.shade||'',s.topEc||'',s.bottomEc||'',s.plantState||'',s.dew||'',s.wind||'',s.sun||'',d.quality?.harvestKg||'',d.quality?.brix||'',s.memo||'']))});
  const csv='\uFEFF'+rows.map(r=>r.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(',')).join('\n');download('Dファーム_栽培管理PRO.csv',csv,'text/csv;charset=utf-8')
 }
-$('importJson').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!x.settings||!x.days)throw 0;localStorage.setItem(KEY,JSON.stringify(x));renderAll();loadSettingsUI();alert('バックアップを読み込みました')}catch{alert('バックアップ形式が不正です')}};r.readAsText(f)}
+$('importJson').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!x||typeof x!=='object'||!x.settings||typeof x.days!=='object'||Array.isArray(x.days))throw 0;const current=localStorage.getItem(KEY);if(current)localStorage.setItem(RECOVERY_KEY,current);const fixed=normalizeDB(x);localStorage.setItem(KEY,JSON.stringify(fixed));renderAll();loadSettingsUI();alert('バックアップを読み込みました。二重登録チェックも完了しました')}catch{alert('バックアップ形式が不正です。現在のデータは変更していません')}};r.readAsText(f);e.target.value=''}
 
 function xmlEscape(v){
  return String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
