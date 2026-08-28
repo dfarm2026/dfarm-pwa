@@ -109,14 +109,6 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
 #zeusCard{border:1px solid #cfe8d7;background:linear-gradient(180deg,#ffffff,#f7fbf8)}
 #zeusCard .btn.primary{min-height:48px;font-size:15px}
 </style>
-
-<link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#165a3c">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="DファームPRO">
-<link rel="apple-touch-icon" href="icon-192.png">
-<script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}</script>
 </head>
 <body>
 
@@ -504,9 +496,16 @@ $('saveQuality').onclick=()=>{const d=ensureDay(TODAY);d.quality={harvestKg:$('h
 
 function renderLogs(){
  const d=ensureDay(TODAY),items=[];
- (d.logs||[]).slice().sort((a,b)=>a.time.localeCompare(b.time)).forEach(l=>items.push(`<div class="history"><div><div class="d">${l.time} 給液</div><div class="s">${l.zone}${l.source==='schedule'?'・予定実施':'・手動'}</div></div><div class="r"><b>${l.seconds}秒</b><div class="s">${mlPerPlant(l.seconds).toFixed(1)}mL/株</div></div></div>`));
+ const sortedLogs=(d.logs||[]).map((l,i)=>({...l,_idx:i})).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+ sortedLogs.forEach(l=>items.push(`<div class="history"><div><div class="d">${l.time} 給液</div><div class="s">${l.zone}${l.source==='schedule'?'・予定実施':'・手動'}</div></div><div class="r"><b>${l.seconds}秒</b><div class="s">${mlPerPlant(l.seconds).toFixed(1)}mL/株</div><button class="btn danger log-delete" data-log-index="${l._idx}" style="margin-top:7px;padding:6px 10px;font-size:11px">削除</button></div></div>`));
  (d.events||[]).forEach(e=>items.push(`<div class="history"><div><div class="d">${e.time||''} ${e.type}</div><div class="s">${e.text}</div></div></div>`));
  $('todayLog').innerHTML=items.length?items.join(''):'<div class="small">まだ記録はありません。</div>';
+ $('todayLog').querySelectorAll('.log-delete').forEach(btn=>btn.onclick=()=>{
+   const idx=Number(btn.dataset.logIndex),cur=ensureDay(TODAY),log=cur.logs?.[idx];
+   if(!log)return;
+   if(!confirm(`${log.time||''} ${log.zone||''} ${log.seconds||0}秒 の給液記録を削除しますか？`))return;
+   cur.logs.splice(idx,1);setDay(TODAY,cur);renderAll();
+ });
  $('harvestKg').value=d.quality.harvestKg||'';$('brix').value=d.quality.brix||'';
 }
 
@@ -560,41 +559,65 @@ $('importJson').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new 
 function xmlEscape(v){
  return String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 }
+function xlsxCell(v,isNumber=false){
+ if(v===''||v===null||v===undefined)return '<c/>';
+ if(isNumber && Number.isFinite(Number(v)))return `<c><v>${Number(v)}</v></c>`;
+ return `<c t="inlineStr"><is><t>${xmlEscape(v)}</t></is></c>`;
+}
+function xlsxSheet(rows,numberCols=[]){
+ const body=rows.map(r=>'<row>'+r.map((v,i)=>xlsxCell(v,numberCols.includes(i))).join('')+'</row>').join('');
+ return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${body}</sheetData></worksheet>`;
+}
+function crc32(bytes){
+ let c=0xffffffff;
+ for(const b of bytes){c^=b;for(let k=0;k<8;k++)c=(c>>>1)^((c&1)?0xedb88320:0)}
+ return (c^0xffffffff)>>>0;
+}
+function zipStore(files){
+ const enc=new TextEncoder(),parts=[],central=[];let offset=0;
+ const u16=n=>new Uint8Array([n&255,(n>>>8)&255]);
+ const u32=n=>new Uint8Array([n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255]);
+ const now=new Date(),dosTime=((now.getHours()&31)<<11)|((now.getMinutes()&63)<<5)|((Math.floor(now.getSeconds()/2))&31),dosDate=(((now.getFullYear()-1980)&127)<<9)|(((now.getMonth()+1)&15)<<5)|(now.getDate()&31);
+ files.forEach(f=>{
+   const name=enc.encode(f.name),data=typeof f.data==='string'?enc.encode(f.data):f.data,crc=crc32(data),size=data.length;
+   const local=[u32(0x04034b50),u16(20),u16(0x0800),u16(0),u16(dosTime),u16(dosDate),u32(crc),u32(size),u32(size),u16(name.length),u16(0),name,data];
+   local.forEach(x=>parts.push(x));
+   const localSize=local.reduce((a,x)=>a+x.length,0);
+   central.push([u32(0x02014b50),u16(20),u16(20),u16(0x0800),u16(0),u16(dosTime),u16(dosDate),u32(crc),u32(size),u32(size),u16(name.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(offset),name]);
+   offset+=localSize;
+ });
+ const centralOffset=offset;
+ central.forEach(entry=>entry.forEach(x=>{parts.push(x);offset+=x.length}));
+ const centralSize=offset-centralOffset;
+ parts.push(u32(0x06054b50),u16(0),u16(0),u16(files.length),u16(files.length),u32(centralSize),u32(centralOffset),u16(0));
+ return new Blob(parts,{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+function downloadBlob(name,blob){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
 function exportExcelWorkbook(){
  const db=load();
  const headers=['日付','時刻','給液秒数','区分','mL/株','総給液L','天候','ハウス温度℃','遮光','上部EC','下部EC','株状態','葉露','風','日射','収穫kg','糖度Brix','観察メモ'];
- let rows=[];
+ const detail=[headers];
  Object.keys(db.days).sort().forEach(date=>{
    const d=db.days[date],s=d.state||{},logs=(d.logs&&d.logs.length)?d.logs:[{}];
-   logs.forEach(l=>rows.push([
-     date,l.time||'',l.seconds||'',l.zone||'',
-     l.seconds?mlPerPlant(l.seconds).toFixed(1):'',
-     l.seconds?totalLiters(l.seconds).toFixed(1):'',
-     s.weather||'',s.temp||'',s.shade||'',s.topEc||'',s.bottomEc||'',
-     s.plantState||'',s.dew||'',s.wind||'',s.sun||'',
-     d.quality?.harvestKg||'',d.quality?.brix||'',s.memo||''
-   ]));
+   logs.forEach(l=>detail.push([date,l.time||'',l.seconds||'',l.zone||'',l.seconds?mlPerPlant(l.seconds).toFixed(1):'',l.seconds?totalLiters(l.seconds).toFixed(1):'',s.weather||'',s.temp||'',s.shade||'',s.topEc||'',s.bottomEc||'',s.plantState||'',s.dew||'',s.wind||'',s.sun||'',d.quality?.harvestKg||'',d.quality?.brix||'',s.memo||'']));
  });
- const cell=(v,type='String')=>`<Cell><Data ss:Type="${type}">${xmlEscape(v)}</Data></Cell>`;
- let xml='<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>';
- xml+='<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">';
- xml+='<Styles><Style ss:ID="Header"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#17643A" ss:Pattern="Solid"/></Style></Styles>';
- xml+='<Worksheet ss:Name="栽培記録"><Table>';
- xml+='<Row>'+headers.map(h=>`<Cell ss:StyleID="Header"><Data ss:Type="String">${xmlEscape(h)}</Data></Cell>`).join('')+'</Row>';
- rows.forEach(r=>{xml+='<Row>'+r.map((v,i)=>cell(v,([2,4,5,7,9,10,15,16].includes(i)&&v!==''?'Number':'String'))).join('')+'</Row>'});
- xml+='</Table></Worksheet>';
- // Daily summary sheet
- xml+='<Worksheet ss:Name="日別集計"><Table>';
- const sumHeaders=['日付','給液合計秒','mL/株','総給液L','上部EC','下部EC','温度℃','遮光','株状態','収穫kg','糖度Brix'];
- xml+='<Row>'+sumHeaders.map(h=>`<Cell ss:StyleID="Header"><Data ss:Type="String">${xmlEscape(h)}</Data></Cell>`).join('')+'</Row>';
+ const summary=[['日付','給液合計秒','mL/株','総給液L','上部EC','下部EC','温度℃','遮光','株状態','収穫kg','糖度Brix']];
  Object.keys(db.days).sort().forEach(date=>{
    const d=db.days[date],s=d.state||{},sec=totalSec(d);
-   const r=[date,sec,mlPerPlant(sec).toFixed(1),totalLiters(sec).toFixed(1),s.topEc||'',s.bottomEc||'',s.temp||'',s.shade||'',s.plantState||'',d.quality?.harvestKg||'',d.quality?.brix||''];
-   xml+='<Row>'+r.map((v,i)=>cell(v,([1,2,3,4,5,6,9,10].includes(i)&&v!==''?'Number':'String'))).join('')+'</Row>';
+   summary.push([date,sec,mlPerPlant(sec).toFixed(1),totalLiters(sec).toFixed(1),s.topEc||'',s.bottomEc||'',s.temp||'',s.shade||'',s.plantState||'',d.quality?.harvestKg||'',d.quality?.brix||'']);
  });
- xml+='</Table></Worksheet></Workbook>';
- download('Dファーム_栽培管理_'+TODAY+'.xls',xml,'application/vnd.ms-excel');
+ const files=[
+  {name:'[Content_Types].xml',data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`},
+  {name:'_rels/.rels',data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`},
+  {name:'xl/workbook.xml',data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="栽培記録" sheetId="1" r:id="rId1"/><sheet name="日別集計" sheetId="2" r:id="rId2"/></sheets></workbook>`},
+  {name:'xl/_rels/workbook.xml.rels',data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`},
+  {name:'xl/styles.xml',data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="Arial"/></font></fonts><fills count="1"><fill><patternFill patternType="none"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="1"><xf xfId="0"/></cellXfs></styleSheet>`},
+  {name:'xl/worksheets/sheet1.xml',data:xlsxSheet(detail,[2,4,5,7,9,10,15,16])},
+  {name:'xl/worksheets/sheet2.xml',data:xlsxSheet(summary,[1,2,3,4,5,6,9,10])}
+ ];
+ downloadBlob('Dファーム_栽培管理_'+TODAY+'.xlsx',zipStore(files));
 }
+
 function dayReportHtml(date){
  const db=load(),d=db.days[date]||dayTemplate(),s=d.state||{},sec=totalSec(d);
  const logs=(d.logs||[]).slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''));
