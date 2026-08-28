@@ -128,7 +128,7 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
  <div class="top">
   <div class="brand">Dファーム <small>栽培管理 PRO</small></div>
   <div class="grow"></div>
-  <span class="badge" id="buildBadge">v3.1</span>
+  <span class="badge" id="buildBadge">v3.2</span>
    <span class="badge" id="saveBadge">● 保存済み</span>
   <button class="btn soft" id="quickBtn">＋給液</button>
  </div>
@@ -313,7 +313,7 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
    <div class="actions">
     <button class="btn soft goto-page" data-target="historyPage">📅 履歴を見る</button>
     <button class="btn soft goto-page" data-target="analysisPage">📈 分析を見る</button>
-    <button class="btn primary" id="exportExcel2">Excel出力</button>
+    <button class="btn primary" id="exportExcel2">Excel出力（.xlsx）</button>
     <button class="btn blue" id="printDaily2">今日の日報</button>
     <button class="btn blue" id="printMonthly2">今月の月報</button>
    </div>
@@ -377,7 +377,7 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
    <div class="actions">
     <button class="btn soft" id="exportJson">JSONバックアップ</button>
     <button class="btn soft" id="exportCsv">CSV出力</button>
-    <button class="btn primary" id="exportExcel">Excel出力</button>
+    <button class="btn primary" id="exportExcel">Excel出力（.xlsx）</button>
     <button class="btn blue" id="printDaily">今日の日報</button>
     <button class="btn blue" id="printMonthly">今月の月報</button>
     <label class="btn ghost">JSON読込<input id="importJson" type="file" accept=".json" class="hidden"></label>
@@ -576,14 +576,29 @@ $('importJson').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new 
 function xmlEscape(v){
  return String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 }
-function xlsxCell(v,isNumber=false){
- if(v===''||v===null||v===undefined)return '<c/>';
- if(isNumber && Number.isFinite(Number(v)))return `<c><v>${Number(v)}</v></c>`;
- return `<c t="inlineStr"><is><t>${xmlEscape(v)}</t></is></c>`;
+function xlsxColName(n){
+ let s='';
+ while(n>0){n--;s=String.fromCharCode(65+(n%26))+s;n=Math.floor(n/26)}
+ return s;
 }
-function xlsxSheet(rows,numberCols=[]){
- const body=rows.map(r=>'<row>'+r.map((v,i)=>xlsxCell(v,numberCols.includes(i))).join('')+'</row>').join('');
- return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${body}</sheetData></worksheet>`;
+function xlsxCell(v,row,col,isNumber=false,style=0){
+ const ref=xlsxColName(col)+row,st=style?` s="${style}"`:'';
+ if(v===''||v===null||v===undefined)return `<c r="${ref}"${st}/>`;
+ if(isNumber && Number.isFinite(Number(v)))return `<c r="${ref}"${st}><v>${Number(v)}</v></c>`;
+ const txt=String(v);
+ const preserve=/^\s|\s$|\n/.test(txt)?' xml:space="preserve"':'';
+ return `<c r="${ref}" t="inlineStr"${st}><is><t${preserve}>${xmlEscape(txt)}</t></is></c>`;
+}
+function xlsxSheet(rows,numberCols=[],widths=[]){
+ const maxCols=Math.max(1,...rows.map(r=>r.length)),maxRows=Math.max(1,rows.length);
+ const cols=widths.length?`<cols>${widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')}</cols>`:'';
+ const body=rows.map((r,ri)=>`<row r="${ri+1}">${r.map((v,i)=>xlsxCell(v,ri+1,i+1,numberCols.includes(i),ri===0?1:0)).join('')}</row>`).join('');
+ const last=xlsxColName(maxCols)+maxRows;
+ return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`+
+  `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`+
+  `<dimension ref="A1:${last}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`+
+  `<sheetFormatPr defaultRowHeight="15"/>${cols}<sheetData>${body}</sheetData>`+
+  `<autoFilter ref="A1:${xlsxColName(maxCols)}${Math.max(1,maxRows)}"/></worksheet>`;
 }
 function crc32(bytes){
  let c=0xffffffff;
@@ -594,7 +609,7 @@ function zipStore(files){
  const enc=new TextEncoder(),parts=[],central=[];let offset=0;
  const u16=n=>new Uint8Array([n&255,(n>>>8)&255]);
  const u32=n=>new Uint8Array([n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255]);
- const now=new Date(),dosTime=((now.getHours()&31)<<11)|((now.getMinutes()&63)<<5)|((Math.floor(now.getSeconds()/2))&31),dosDate=(((now.getFullYear()-1980)&127)<<9)|(((now.getMonth()+1)&15)<<5)|(now.getDate()&31);
+ const now=new Date(),dosTime=((now.getHours()&31)<<11)|((now.getMinutes()&63)<<5)|((Math.floor(now.getSeconds()/2))&31),dosDate=(((Math.max(1980,now.getFullYear())-1980)&127)<<9)|(((now.getMonth()+1)&15)<<5)|(now.getDate()&31);
  files.forEach(f=>{
    const name=enc.encode(f.name),data=typeof f.data==='string'?enc.encode(f.data):f.data,crc=crc32(data),size=data.length;
    const local=[u32(0x04034b50),u16(20),u16(0x0800),u16(0),u16(dosTime),u16(dosDate),u32(crc),u32(size),u32(size),u16(name.length),u16(0),name,data];
@@ -609,30 +624,48 @@ function zipStore(files){
  parts.push(u32(0x06054b50),u16(0),u16(0),u16(files.length),u16(files.length),u32(centralSize),u32(centralOffset),u16(0));
  return new Blob(parts,{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
 }
-function downloadBlob(name,blob){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
+function downloadBlob(name,blob){
+ const u=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(u),3000);
+}
 function exportExcelWorkbook(){
- const db=load();
- const headers=['日付','時刻','給液秒数','区分','mL/株','総給液L','天候','ハウス温度℃','遮光','上部EC','下部EC','株状態','葉露','風','日射','収穫kg','糖度Brix','観察メモ'];
- const detail=[headers];
- Object.keys(db.days).sort().forEach(date=>{
-   const d=db.days[date],s=d.state||{},logs=(d.logs&&d.logs.length)?d.logs:[{}];
-   logs.forEach(l=>detail.push([date,l.time||'',l.seconds||'',l.zone||'',l.seconds?mlPerPlant(l.seconds).toFixed(1):'',l.seconds?totalLiters(l.seconds).toFixed(1):'',s.weather||'',s.temp||'',s.shade||'',s.topEc||'',s.bottomEc||'',s.plantState||'',s.dew||'',s.wind||'',s.sun||'',d.quality?.harvestKg||'',d.quality?.brix||'',s.memo||'']));
- });
- const summary=[['日付','給液合計秒','mL/株','総給液L','上部EC','下部EC','温度℃','遮光','株状態','収穫kg','糖度Brix']];
- Object.keys(db.days).sort().forEach(date=>{
-   const d=db.days[date],s=d.state||{},sec=totalSec(d);
-   summary.push([date,sec,mlPerPlant(sec).toFixed(1),totalLiters(sec).toFixed(1),s.topEc||'',s.bottomEc||'',s.temp||'',s.shade||'',s.plantState||'',d.quality?.harvestKg||'',d.quality?.brix||'']);
- });
- const files=[
-  {name:'[Content_Types].xml',data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`},
-  {name:'_rels/.rels',data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`},
-  {name:'xl/workbook.xml',data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="栽培記録" sheetId="1" r:id="rId1"/><sheet name="日別集計" sheetId="2" r:id="rId2"/></sheets></workbook>`},
-  {name:'xl/_rels/workbook.xml.rels',data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`},
-  {name:'xl/styles.xml',data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="Arial"/></font></fonts><fills count="1"><fill><patternFill patternType="none"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="1"><xf xfId="0"/></cellXfs></styleSheet>`},
-  {name:'xl/worksheets/sheet1.xml',data:xlsxSheet(detail,[2,4,5,7,9,10,15,16])},
-  {name:'xl/worksheets/sheet2.xml',data:xlsxSheet(summary,[1,2,3,4,5,6,9,10])}
- ];
- downloadBlob('Dファーム_栽培管理_'+TODAY+'.xlsx',zipStore(files));
+ try{
+  const db=load();
+  const headers=['日付','時刻','給液秒数','区分','mL/株','総給液L','天候','ハウス温度℃','遮光','上部EC','下部EC','株状態','葉露','風','日射','収穫kg','糖度Brix','観察メモ'];
+  const detail=[headers];
+  Object.keys(db.days).sort().forEach(date=>{
+    const d=db.days[date],s=d.state||{},logs=(d.logs&&d.logs.length)?d.logs:[{}];
+    logs.forEach(l=>detail.push([date,l.time||'',l.seconds||'',l.zone||'',l.seconds?mlPerPlant(l.seconds).toFixed(1):'',l.seconds?totalLiters(l.seconds).toFixed(1):'',s.weather||'',s.temp||'',s.shade||'',s.topEc||'',s.bottomEc||'',s.plantState||'',s.dew||'',s.wind||'',s.sun||'',d.quality?.harvestKg||'',d.quality?.brix||'',s.memo||'']));
+  });
+  const summary=[['日付','給液合計秒','mL/株','総給液L','上部EC','下部EC','温度℃','遮光','株状態','収穫kg','糖度Brix']];
+  Object.keys(db.days).sort().forEach(date=>{
+    const d=db.days[date],s=d.state||{},sec=totalSec(d);
+    summary.push([date,sec,mlPerPlant(sec).toFixed(1),totalLiters(sec).toFixed(1),s.topEc||'',s.bottomEc||'',s.temp||'',s.shade||'',s.plantState||'',d.quality?.harvestKg||'',d.quality?.brix||'']);
+  });
+  const contentTypes=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>`;
+  const rootRels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>`;
+  const workbook=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets><sheet name="栽培記録" sheetId="1" r:id="rId1"/><sheet name="日別集計" sheetId="2" r:id="rId2"/></sheets><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>`;
+  const workbookRels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+  const styles=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Aptos"/><family val="2"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Aptos"/><family val="2"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF17643A"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFD9E3DC"/></left><right style="thin"><color rgb="FFD9E3DC"/></right><top style="thin"><color rgb="FFD9E3DC"/></top><bottom style="thin"><color rgb="FFD9E3DC"/></bottom><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="center" vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  const app=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>Dファーム 栽培管理PRO</Application></Properties>`;
+  const iso=new Date().toISOString();
+  const core=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>Dファーム 栽培管理</dc:title><dc:creator>Dファーム 栽培管理PRO</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${iso}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${iso}</dcterms:modified></cp:coreProperties>`;
+  const files=[
+   {name:'[Content_Types].xml',data:contentTypes},
+   {name:'_rels/.rels',data:rootRels},
+   {name:'docProps/app.xml',data:app},
+   {name:'docProps/core.xml',data:core},
+   {name:'xl/workbook.xml',data:workbook},
+   {name:'xl/_rels/workbook.xml.rels',data:workbookRels},
+   {name:'xl/styles.xml',data:styles},
+   {name:'xl/worksheets/sheet1.xml',data:xlsxSheet(detail,[2,4,5,7,9,10,15,16],[12,9,11,10,11,12,14,14,10,10,10,12,10,10,10,11,11,36])},
+   {name:'xl/worksheets/sheet2.xml',data:xlsxSheet(summary,[1,2,3,4,5,6,9,10],[12,12,11,12,10,10,10,10,12,11,11])}
+  ];
+  downloadBlob('Dファーム_栽培管理_'+TODAY+'.xlsx',zipStore(files));
+ }catch(err){
+  console.error(err);alert('Excel出力に失敗しました。JSONバックアップを保存してから、もう一度お試しください。');
+ }
 }
 
 function dayReportHtml(date){
