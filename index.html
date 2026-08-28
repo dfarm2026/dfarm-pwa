@@ -54,9 +54,12 @@ input,select,textarea{width:100%;border:1px solid var(--line);border-radius:11px
 textarea{min-height:86px;resize:vertical}
 .small{font-size:11px;color:var(--muted);line-height:1.5}
 .schedule{display:flex;flex-direction:column;gap:8px}
-.slot{display:grid;grid-template-columns:70px 1fr auto;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;padding:11px}
+.slot{display:grid;grid-template-columns:70px minmax(0,1fr) auto;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;padding:11px;overflow:hidden}
 .slot.done{background:var(--green2);border-color:var(--green3)}
-.slot .time{font-weight:900}.slot .mid{font-size:13px}.slot .mid small{display:block;color:var(--muted);margin-top:3px}
+.slot .time{font-weight:900}.slot .mid{font-size:13px;min-width:0}.slot .mid small{display:block;color:var(--muted);margin-top:3px}
+.slot-actions{display:flex;gap:6px;align-items:center;justify-content:flex-end;min-width:0}
+.slot-status{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:8px 11px;border-radius:11px;background:#f0f3f1;color:#435249;font-weight:900;white-space:nowrap}
+.slot-actions .btn{white-space:nowrap;min-width:0!important}
 .alert{border-radius:14px;padding:12px 13px;margin-bottom:8px;font-size:13px;line-height:1.45}
 .alert.green{background:var(--green2);color:#205c3b}.alert.amber{background:var(--amber2);color:#775100}
 .alert.red{background:var(--red2);color:#8f2d25}.alert.blue{background:var(--blue2);color:#2b5879}
@@ -77,6 +80,15 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
 @media(max-width:780px){
  .s8,.s6,.s4,.s3{grid-column:span 12}.kpis{grid-template-columns:repeat(2,1fr)}
  .row{flex-direction:column;align-items:stretch}.hero h1{font-size:24px}.hero .score{min-width:82px}
+ .slot{grid-template-columns:72px minmax(0,1fr);grid-template-areas:"time mid" "actions actions";gap:8px 10px;padding:12px}
+ .slot .time{grid-area:time;font-size:18px}
+ .slot .mid{grid-area:mid}
+ .slot-actions{grid-area:actions;display:grid;grid-template-columns:1fr 1fr;width:100%;gap:8px;margin-top:2px}
+ .slot-actions.single{grid-template-columns:1fr}
+ .slot-actions .btn,.slot-status{width:100%;min-height:46px;font-size:14px}
+ .slot-status{display:flex}
+ #scheduleList{overflow:hidden}
+ body{overflow-x:hidden}
 }
 
 @media print{
@@ -99,7 +111,7 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
 
 
 .quick-state{min-height:54px;font-size:16px;flex:1 1 42%}
-#scheduleList .btn{min-width:72px;min-height:44px;font-size:15px}
+#scheduleList .btn{min-height:44px;font-size:15px}
 .hero{padding:18px}
 #todayPage .card h2{font-size:17px}
 @media(max-width:780px){
@@ -141,7 +153,7 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
  <div class="top">
   <div class="brand">Dファーム <small>栽培管理 PRO</small></div>
   <div class="grow"></div>
-  <span class="badge" id="buildBadge">v3.4</span>
+  <span class="badge" id="buildBadge">v3.5</span>
    <span class="badge" id="saveBadge">● 保存済み</span>
   <button class="btn soft" id="quickBtn">＋給液</button>
  </div>
@@ -406,6 +418,7 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
     <button class="btn blue" id="printDaily">今日の日報</button>
     <button class="btn blue" id="printMonthly">今月の月報</button>
     <label class="btn ghost">JSON読込<input id="importJson" type="file" accept=".json" class="hidden"></label>
+    <button class="btn ghost" id="restoreRecovery">直前データを復元</button>
     <button class="btn danger" id="resetAll">全データ削除</button>
    </div>
    <div class="small" style="margin-top:10px">データはこの端末内に保存されます。端末変更やブラウザ削除に備えて、定期的にJSONバックアップを保存してください。</div>
@@ -486,12 +499,14 @@ function load(){
    const raw=localStorage.getItem(KEY); if(!raw)return structuredClone(DEFAULTS);
    const parsed=JSON.parse(raw); if(!parsed||!parsed.settings||!parsed.days)return structuredClone(DEFAULTS);
    const before=JSON.stringify(parsed),fixed=normalizeDB(parsed),after=JSON.stringify(fixed);
-   if(before!==after){try{localStorage.setItem(RECOVERY_KEY,before)}catch{} localStorage.setItem(KEY,after)}
+   if(before!==after){try{localStorage.setItem(RECOVERY_KEY,JSON.stringify({savedAt:new Date().toISOString(),reason:'整合性自動修復前',data:before}))}catch{} localStorage.setItem(KEY,after)}
    return fixed;
  }catch{return structuredClone(DEFAULTS)}
 }
 function save(db){const fixed=normalizeDB(db);localStorage.setItem(KEY,JSON.stringify(fixed));flashSaved()}
 function flashSaved(){const b=$('saveBadge');b.textContent='● 保存済み';setTimeout(()=>b.textContent='● 保存済み',400)}
+function snapshotRecovery(reason='操作前'){try{const current=localStorage.getItem(KEY);if(current)localStorage.setItem(RECOVERY_KEY,JSON.stringify({savedAt:new Date().toISOString(),reason,data:current}))}catch{}}
+function getRecovery(){try{const raw=localStorage.getItem(RECOVERY_KEY);if(!raw)return null;const obj=JSON.parse(raw);if(obj&&typeof obj.data==='string')return obj;return {savedAt:'',reason:'旧形式',data:raw}}catch{return null}}
 function dayTemplate(){return {state:{weather:'晴れ',temp:'',shade:'なし',topEc:'0.9',bottomEc:'1.0',plantState:'良好',dew:'なし',wind:'弱い',sun:'普通',flower:'変化なし',memo:''},schedule:[],logs:[],events:[],stateLogs:[],quality:{harvestKg:'',brix:''},zeusAdvice:''}}
 function ensureDay(date){const db=load();if(!db.days[date])db.days[date]=dayTemplate();const d=db.days[date];d.logs=d.logs||[];d.events=d.events||[];d.stateLogs=d.stateLogs||[];d.quality=d.quality||{harvestKg:'',brix:''};d.state=d.state||dayTemplate().state;save(db);return d}
 function setDay(date,d){const db=load();db.days[date]=d;save(db)}
@@ -528,7 +543,7 @@ function renderToday(){
  d.schedule.slice().sort((a,b)=>a.time.localeCompare(b.time)).forEach((s,i)=>{
    const done=isDone(d,s);
    const div=document.createElement('div');div.className='slot'+(done?' done':'');
-   div.innerHTML=`<div class="time">${s.time}</div><div class="mid"><b>${s.zone} ${s.seconds}秒</b><small>${mlPerPlant(s.seconds).toFixed(1)}mL/株 ${done?'・実施済み':'・未実施'}</small></div><div style="display:flex;gap:6px">${done?`<button class="btn ghost" disabled>実施済み</button><button class="btn ghost schedule-cancel" data-i="${i}">取消</button>`:`<button class="btn primary schedule-do" data-i="${i}">実施</button>`}<button class="btn danger schedule-delete" data-i="${i}" style="padding:10px 11px">削除</button></div>`;
+   div.innerHTML=`<div class="time">${s.time}</div><div class="mid"><b>${s.zone} ${s.seconds}秒</b><small>${mlPerPlant(s.seconds).toFixed(1)}mL/株 ${done?'・実施済み':'・未実施'}</small></div><div class="slot-actions">${done?`<button class="btn ghost schedule-cancel" data-i="${i}">実施を取消</button>`:`<button class="btn primary schedule-do" data-i="${i}">実施する</button>`}<button class="btn danger schedule-delete" data-i="${i}">予定を削除</button></div>`;
    list.appendChild(div);
  });
  list.querySelectorAll('.schedule-do').forEach(b=>b.onclick=()=>{
@@ -542,15 +557,15 @@ function renderToday(){
  });
  list.querySelectorAll('.schedule-cancel').forEach(b=>b.onclick=()=>{
    const d=ensureDay(TODAY);d.schedule.sort((a,b)=>a.time.localeCompare(b.time));const s=d.schedule[Number(b.dataset.i)];if(!s)return;
-   if(!confirm(`${s.time} ${s.zone} ${s.seconds}秒 の実施記録を取り消しますか？`))return;
+   if(!confirm(`${s.time} ${s.zone} ${s.seconds}秒 の実施記録を取り消しますか？\n実績合計から ${s.seconds}秒 減ります。`))return;
    const idx=d.logs.findIndex(l=>(l.scheduleId&&l.scheduleId===s.id)||(l.source==='schedule'&&l.scheduleTime===s.time&&Number(l.seconds)===Number(s.seconds)&&l.zone===s.zone));
-   if(idx>=0)d.logs.splice(idx,1);setDay(TODAY,d);renderAll();
+   if(idx>=0){snapshotRecovery('給液実施取消前');d.logs.splice(idx,1)}setDay(TODAY,d);renderAll();
  });
  list.querySelectorAll('.schedule-delete').forEach(b=>b.onclick=()=>{
    const d=ensureDay(TODAY);d.schedule.sort((a,b)=>a.time.localeCompare(b.time));const i=Number(b.dataset.i),slot=d.schedule[i];
    if(!slot)return;
-   if(!confirm(`${slot.time} ${slot.zone} ${slot.seconds}秒 の予定を削除しますか？\n※給液実績は残ります。`))return;
-   d.schedule.splice(i,1);setDay(TODAY,d);renderAll();
+   if(!confirm(`${slot.time} ${slot.zone} ${slot.seconds}秒 の予定だけを削除しますか？\n※実施済みの給液実績は削除されません。`))return;
+   snapshotRecovery('給液予定削除前');d.schedule.splice(i,1);setDay(TODAY,d);renderAll();
  });
  renderAdvice();
 }
@@ -682,7 +697,7 @@ $('exportCsv').onclick=()=>{
  Object.keys(db.days).sort().forEach(date=>{const d=db.days[date],s=d.state,logs=d.logs.length?d.logs:[{}];logs.forEach(l=>rows.push([date,l.time||'',l.seconds||'',l.zone||'',l.seconds?mlPerPlant(l.seconds).toFixed(1):'',l.seconds?totalLiters(l.seconds).toFixed(1):'',s.weather||'',s.temp||'',s.shade||'',s.topEc||'',s.bottomEc||'',s.plantState||'',s.dew||'',s.wind||'',s.sun||'',d.quality?.harvestKg||'',d.quality?.brix||'',s.memo||'']))});
  const csv='\uFEFF'+rows.map(r=>r.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(',')).join('\n');download('Dファーム_栽培管理PRO.csv',csv,'text/csv;charset=utf-8')
 }
-$('importJson').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!x||typeof x!=='object'||!x.settings||typeof x.days!=='object'||Array.isArray(x.days))throw 0;const current=localStorage.getItem(KEY);if(current)localStorage.setItem(RECOVERY_KEY,current);const fixed=normalizeDB(x);localStorage.setItem(KEY,JSON.stringify(fixed));renderAll();loadSettingsUI();alert('バックアップを読み込みました。二重登録チェックも完了しました')}catch{alert('バックアップ形式が不正です。現在のデータは変更していません')}};r.readAsText(f);e.target.value=''}
+$('importJson').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!x||typeof x!=='object'||!x.settings||typeof x.days!=='object'||Array.isArray(x.days))throw 0;snapshotRecovery('JSON読込前');const fixed=normalizeDB(x);localStorage.setItem(KEY,JSON.stringify(fixed));renderAll();loadSettingsUI();alert('バックアップを読み込みました。二重登録チェックも完了しました')}catch{alert('バックアップ形式が不正です。現在のデータは変更していません')}};r.readAsText(f);e.target.value=''}
 
 function xmlEscape(v){
  return String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
@@ -843,7 +858,8 @@ $('exportExcel').onclick=exportExcelWorkbook;
 $('printDaily').onclick=printDailyReport;
 $('printMonthly').onclick=printMonthlyReport;
 
-$('resetAll').onclick=()=>{if(confirm('全データを削除します。元に戻せません。')){localStorage.removeItem(KEY);ensureDay(TODAY);renderAll();loadSettingsUI()}}
+if($('restoreRecovery')) $('restoreRecovery').onclick=()=>{const r=getRecovery();if(!r){alert('復元できる直前データがありません');return}const when=r.savedAt?new Date(r.savedAt).toLocaleString('ja-JP'):'';if(!confirm(`直前データを復元しますか？\n${r.reason||''}${when?'\n保存: '+when:''}`))return;try{JSON.parse(r.data);localStorage.setItem(KEY,r.data);renderAll();loadSettingsUI();alert('直前データを復元しました')}catch{alert('復元データが壊れています')}};
+$('resetAll').onclick=()=>{if(confirm('全データを削除しますか？\n削除直前の状態は「直前データを復元」で戻せます。')){snapshotRecovery('全データ削除前');localStorage.removeItem(KEY);ensureDay(TODAY);renderAll();loadSettingsUI()}}
 
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(b.dataset.page).classList.add('active');if(b.dataset.page==='analysisPage')renderAnalysis()})
 document.querySelectorAll('.range').forEach(b=>b.onclick=()=>{document.querySelectorAll('.range').forEach(x=>{x.classList.remove('primary');x.classList.add('ghost')});b.classList.remove('ghost');b.classList.add('primary');renderHistory(Number(b.dataset.range))})
