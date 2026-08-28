@@ -20,7 +20,7 @@
 html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif}
 button,input,select,textarea{font:inherit}
 button{cursor:pointer}
-header{position:sticky;top:0;z-index:20;background:rgba(242,245,242,.94);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
+header{position:sticky;top:0;z-index:20;background:rgba(242,245,242,.94);backdrop-filter:blur(16px);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top)}
 .top{max-width:1100px;margin:auto;padding:12px 16px;display:flex;align-items:center;gap:12px}
 .brand{font-size:20px;font-weight:900}.brand small{display:block;font-size:11px;font-weight:650;color:var(--muted);margin-top:2px}
 .top .grow{flex:1}
@@ -38,6 +38,9 @@ main{max-width:1100px;margin:auto;padding:14px 14px 100px}
 .card h2{font-size:16px;margin:0 0 12px}.card h3{font-size:13px;margin:0 0 8px}
 .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
 .kpi{border:1px solid var(--line);border-radius:14px;padding:12px;background:#fafcfb}
+.kpi.editable{cursor:pointer;position:relative;transition:.15s ease;touch-action:manipulation}
+.kpi.editable:active{transform:scale(.985);background:var(--green2)}
+.kpi.editable:after{content:"タップで変更";display:block;font-size:9px;color:var(--green);font-weight:800;margin-top:6px}
 .kpi .v{font-size:22px;font-weight:900}.kpi .l{font-size:11px;color:var(--muted);margin-top:3px}
 .kpi .sub{font-size:10px;color:var(--muted);margin-top:2px}
 .btn{border:0;border-radius:11px;padding:10px 13px;font-weight:800}
@@ -108,6 +111,16 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
 
 #zeusCard{border:1px solid #cfe8d7;background:linear-gradient(180deg,#ffffff,#f7fbf8)}
 #zeusCard .btn.primary{min-height:48px;font-size:15px}
+.quick-manage{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.quick-manage .qm{border:1px solid var(--line);border-radius:14px;padding:11px;background:#fafcfb}
+.quick-manage .qm b{display:block;font-size:19px;margin-top:4px}
+#quickEditModal{position:fixed;inset:0;z-index:200;background:rgba(8,22,14,.45);display:none;align-items:flex-end;justify-content:center;padding:12px}
+#quickEditModal.open{display:flex}
+#quickEditSheet{width:min(620px,100%);background:#fff;border-radius:22px;padding:18px 16px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -10px 40px rgba(0,0,0,.16)}
+.recent-row{border-bottom:1px solid var(--line);padding:11px 0;display:flex;justify-content:space-between;gap:12px}
+.recent-row:last-child{border-bottom:0}
+.recent-row .main{font-weight:850;font-size:13px}.recent-row .sub{font-size:11px;color:var(--muted);margin-top:3px}
+@media(max-width:780px){.quick-manage{grid-template-columns:repeat(3,1fr)}.quick-manage .qm b{font-size:17px}}
 </style>
 </head>
 <body>
@@ -128,7 +141,7 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
  <div class="top">
   <div class="brand">Dファーム <small>栽培管理 PRO</small></div>
   <div class="grow"></div>
-  <span class="badge" id="buildBadge">v3.2</span>
+  <span class="badge" id="buildBadge">v3.3</span>
    <span class="badge" id="saveBadge">● 保存済み</span>
   <button class="btn soft" id="quickBtn">＋給液</button>
  </div>
@@ -152,9 +165,9 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
    <div class="kpis">
     <div class="kpi"><div class="v"><span id="actualSec">0</span>秒</div><div class="l">実績</div><div class="sub" id="actualMl">0 mL/株</div></div>
     <div class="kpi"><div class="v"><span id="planSec">0</span>秒</div><div class="l">予定</div><div class="sub" id="planMl">0 mL/株</div></div>
-    <div class="kpi"><div class="v" id="topEcKpi">0.9</div><div class="l">上部EC</div></div>
-    <div class="kpi"><div class="v"><span id="tempKpi">--</span>℃</div><div class="l">ハウス温度</div></div>
-    <div class="kpi"><div class="v" id="shadeKpi">なし</div><div class="l">遮光</div></div>
+    <div class="kpi editable" data-quick="ec"><div class="v" id="topEcKpi">0.9</div><div class="l">上部EC</div></div>
+    <div class="kpi editable" data-quick="temp"><div class="v"><span id="tempKpi">--</span>℃</div><div class="l">ハウス温度</div></div>
+    <div class="kpi editable" data-quick="shade"><div class="v" id="shadeKpi">なし</div><div class="l">遮光</div></div>
    </div>
   </div>
 
@@ -249,6 +262,14 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
 <section class="page" id="recordPage">
  <div class="grid">
   <div class="card s12">
+   <div class="section-title"><h2>今日の管理値</h2><span class="badge">タップで変更</span></div>
+   <div class="quick-manage">
+    <button class="qm" data-quick="ec"><span class="small">上部EC</span><b id="recordEc">--</b></button>
+    <button class="qm" data-quick="temp"><span class="small">温度</span><b><span id="recordTemp">--</span>℃</b></button>
+    <button class="qm" data-quick="shade"><span class="small">遮光</span><b id="recordShade">なし</b></button>
+   </div>
+  </div>
+  <div class="card s12">
    <h2>追加の給液を記録</h2>
    <div class="row">
     <div><label>日付</label><input id="recDate" type="date"></div>
@@ -280,6 +301,10 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
   <div class="card s12">
    <h2>当日ログ</h2>
    <div id="todayLog"></div>
+  </div>
+  <div class="card s12">
+   <div class="section-title"><h2>最近の記録</h2><span class="badge">最新10件</span></div>
+   <div id="recentRecords"></div>
   </div>
  </div>
 </section>
@@ -391,6 +416,19 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
 <div id="printArea"></div>
 
 
+
+<div id="quickEditModal" aria-hidden="true">
+ <div id="quickEditSheet">
+  <div class="section-title"><h2 style="margin:0">管理値を変更</h2><button class="btn ghost" id="closeQuickEdit">閉じる</button></div>
+  <div class="row" style="margin-top:14px">
+   <div><label>上部EC</label><input id="quickEc" type="number" step="0.1" inputmode="decimal"></div>
+   <div><label>ハウス温度 ℃</label><input id="quickTemp" type="number" step="0.1" inputmode="decimal" placeholder="例 35"></div>
+   <div><label>遮光</label><select id="quickShade"><option>なし</option><option>30%</option><option>50%</option><option>70%</option><option>100%</option></select></div>
+  </div>
+  <button class="btn primary" id="saveQuickEdit" style="width:100%;margin-top:14px;min-height:48px">保存する</button>
+  <div class="small" style="margin-top:8px">変更時刻も履歴に自動保存します。</div>
+ </div>
+</div>
 <nav>
  <div class="navin" style="grid-template-columns:repeat(3,1fr)">
   <button class="active" data-page="todayPage"><span class="ico">🏠</span>今日</button>
@@ -411,8 +449,8 @@ function jpDate(d=new Date()){return new Intl.DateTimeFormat('ja-JP',{year:'nume
 function load(){try{const x=JSON.parse(localStorage.getItem(KEY));return x&&x.settings&&x.days?x:structuredClone(DEFAULTS)}catch{return structuredClone(DEFAULTS)}}
 function save(db){localStorage.setItem(KEY,JSON.stringify(db));flashSaved()}
 function flashSaved(){const b=$('saveBadge');b.textContent='● 保存済み';setTimeout(()=>b.textContent='● 保存済み',400)}
-function dayTemplate(){return {state:{weather:'晴れ',temp:'',shade:'なし',topEc:'0.9',bottomEc:'1.0',plantState:'良好',dew:'なし',wind:'弱い',sun:'普通',flower:'変化なし',memo:''},schedule:[],logs:[],events:[],quality:{harvestKg:'',brix:''},zeusAdvice:''}}
-function ensureDay(date){const db=load();if(!db.days[date]){db.days[date]=dayTemplate();save(db)}return db.days[date]}
+function dayTemplate(){return {state:{weather:'晴れ',temp:'',shade:'なし',topEc:'0.9',bottomEc:'1.0',plantState:'良好',dew:'なし',wind:'弱い',sun:'普通',flower:'変化なし',memo:''},schedule:[],logs:[],events:[],stateLogs:[],quality:{harvestKg:'',brix:''},zeusAdvice:''}}
+function ensureDay(date){const db=load();if(!db.days[date])db.days[date]=dayTemplate();const d=db.days[date];d.logs=d.logs||[];d.events=d.events||[];d.stateLogs=d.stateLogs||[];d.quality=d.quality||{harvestKg:'',brix:''};d.state=d.state||dayTemplate().state;save(db);return d}
 function setDay(date,d){const db=load();db.days[date]=d;save(db)}
 function defaultSchedule(){return[
  {time:'07:00',seconds:30,zone:'上部'},
@@ -434,7 +472,7 @@ function renderToday(){
  $('actualSec').textContent=actual;$('planSec').textContent=plan;
  $('actualMl').textContent=`${mlPerPlant(actual).toFixed(1)} mL/株・${totalLiters(actual).toFixed(1)} L`;
  $('planMl').textContent=`${mlPerPlant(plan).toFixed(1)} mL/株`;
- $('topEcKpi').textContent=st.topEc||'--';$('tempKpi').textContent=st.temp||'--';$('shadeKpi').textContent=st.shade||'なし';
+ $('topEcKpi').textContent=st.topEc||'--';$('tempKpi').textContent=st.temp||'--';$('shadeKpi').textContent=st.shade||'なし'; if($('recordEc'))$('recordEc').textContent=st.topEc||'--';if($('recordTemp'))$('recordTemp').textContent=st.temp||'--';if($('recordShade'))$('recordShade').textContent=st.shade||'なし';
  ['weather','temp','shade','topEc','bottomEc','plantState','dew','wind','sun','flower','memo'].forEach(id=>{$(id).value=st[id]??''});
 
  const doneCount=d.schedule.filter(s=>isDone(d,s)).length;
@@ -485,13 +523,21 @@ function renderAdvice(){
  $('todayScore').textContent=Math.max(0,score);
 }
 
+function stateLabel(id){return ({weather:'天候',temp:'温度',shade:'遮光',topEc:'上部EC',bottomEc:'下部EC',plantState:'株状態',dew:'葉露',wind:'風',sun:'日射',flower:'開花・着果',memo:'観察メモ'})[id]||id}
+function setStateValue(d,id,value,log=true){const before=d.state[id]??'';d.state[id]=value;if(log&&String(before)!==String(value)){d.stateLogs=d.stateLogs||[];d.stateLogs.push({time:nowTime(),field:id,label:stateLabel(id),from:before,to:value})}}
 function saveState(){
- const d=ensureDay(TODAY);['weather','temp','shade','topEc','bottomEc','plantState','dew','wind','sun','flower','memo'].forEach(id=>d.state[id]=$(id).value);setDay(TODAY,d);renderAll()
+ const d=ensureDay(TODAY);['weather','temp','shade','topEc','bottomEc','plantState','dew','wind','sun','flower','memo'].forEach(id=>setStateValue(d,id,$(id).value,true));setDay(TODAY,d);renderAll()
 }
 $('saveState').onclick=saveState;
 if($('goodBtn')) $('goodBtn').onclick=()=>{$('plantState').value='良好';saveState()}
 if($('droopBtn')) $('droopBtn').onclick=()=>{$('plantState').value='少し垂れ';saveState()}
 $('judgeBtn').onclick=()=>{saveState();renderAdvice()}
+
+function openQuickEdit(){const d=ensureDay(TODAY);$('quickEc').value=d.state.topEc||'';$('quickTemp').value=d.state.temp||'';$('quickShade').value=d.state.shade||'なし';$('quickEditModal').classList.add('open');$('quickEditModal').setAttribute('aria-hidden','false')}
+function closeQuickEdit(){$('quickEditModal').classList.remove('open');$('quickEditModal').setAttribute('aria-hidden','true')}
+document.querySelectorAll('[data-quick]').forEach(el=>el.addEventListener('click',openQuickEdit));
+$('closeQuickEdit').onclick=closeQuickEdit;$('quickEditModal').addEventListener('click',e=>{if(e.target===$('quickEditModal'))closeQuickEdit()});
+$('saveQuickEdit').onclick=()=>{const d=ensureDay(TODAY);setStateValue(d,'topEc',$('quickEc').value,true);setStateValue(d,'temp',$('quickTemp').value,true);setStateValue(d,'shade',$('quickShade').value,true);setDay(TODAY,d);closeQuickEdit();renderAll()};
 
 $('quickBtn').onclick=()=>{document.querySelector('nav button[data-page="recordPage"]').click();$('recDate').value=TODAY;$('recTime').value=nowTime()}
 $('addIrrigation').onclick=()=>{
@@ -510,6 +556,7 @@ function renderLogs(){
  const sortedLogs=(d.logs||[]).map((l,i)=>({...l,_idx:i})).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
  sortedLogs.forEach(l=>items.push(`<div class="history"><div><div class="d">${l.time} 給液</div><div class="s">${l.zone}${l.source==='schedule'?'・予定実施':'・手動'}</div></div><div class="r"><b>${l.seconds}秒</b><div class="s">${mlPerPlant(l.seconds).toFixed(1)}mL/株</div><button class="btn danger log-delete" data-log-index="${l._idx}" style="margin-top:7px;padding:6px 10px;font-size:11px">削除</button></div></div>`));
  (d.events||[]).forEach((e,i)=>items.push(`<div class="history"><div><div class="d">${e.time||''} ${e.type}</div><div class="s">${e.text}</div></div><div class="r"><button class="btn danger event-delete" data-event-index="${i}" style="padding:6px 10px;font-size:11px">削除</button></div></div>`));
+ (d.stateLogs||[]).slice().sort((a,b)=>(a.time||'').localeCompare(b.time||'')).forEach(x=>items.push(`<div class="history"><div><div class="d">${x.time||''} ${x.label||stateLabel(x.field)}</div><div class="s">${x.from!==''?`${x.from} → `:''}${x.to||'未入力'}</div></div></div>`));
  $('todayLog').innerHTML=items.length?items.join(''):'<div class="small">まだ記録はありません。</div>';
  $('todayLog').querySelectorAll('.log-delete').forEach(btn=>btn.onclick=()=>{
    const idx=Number(btn.dataset.logIndex),cur=ensureDay(TODAY),log=cur.logs?.[idx];
@@ -524,6 +571,19 @@ function renderLogs(){
    cur.events.splice(idx,1);setDay(TODAY,cur);renderAll();
  });
  $('harvestKg').value=d.quality.harvestKg||'';$('brix').value=d.quality.brix||'';
+}
+
+function renderRecentRecords(){
+ const box=$('recentRecords');if(!box)return;const db=load(),all=[];
+ Object.keys(db.days).forEach(date=>{const d=db.days[date];
+  (d.logs||[]).forEach(x=>all.push({date,time:x.time||'',title:'給液 '+(x.zone||''),detail:`${x.seconds||0}秒 / ${mlPerPlant(x.seconds||0).toFixed(1)}mL/株`}));
+  (d.events||[]).forEach(x=>all.push({date,time:x.time||'',title:x.type||'栽培イベント',detail:x.text||''}));
+  (d.stateLogs||[]).forEach(x=>all.push({date,time:x.time||'',title:x.label||stateLabel(x.field),detail:`${x.from!==''?x.from+' → ':''}${x.to||'未入力'}`}));
+  if(d.quality?.harvestKg)all.push({date,time:'',title:'収穫',detail:`${d.quality.harvestKg} kg`});
+  if(d.quality?.brix)all.push({date,time:'',title:'糖度',detail:`Brix ${d.quality.brix}`});
+ });
+ all.sort((a,b)=>(b.date+' '+b.time).localeCompare(a.date+' '+a.time));
+ box.innerHTML=all.slice(0,10).map(x=>`<div class="recent-row"><div><div class="main">${x.date.slice(5).replace('-','/')} ${x.time}　${x.title}</div><div class="sub">${x.detail}</div></div></div>`).join('')||'<div class="small">まだ記録はありません。</div>';
 }
 
 function renderHistory(range=7){
@@ -737,7 +797,7 @@ $('resetAll').onclick=()=>{if(confirm('全データを削除します。元に�
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(b.dataset.page).classList.add('active');if(b.dataset.page==='analysisPage')renderAnalysis()})
 document.querySelectorAll('.range').forEach(b=>b.onclick=()=>{document.querySelectorAll('.range').forEach(x=>{x.classList.remove('primary');x.classList.add('ghost')});b.classList.remove('ghost');b.classList.add('primary');renderHistory(Number(b.dataset.range))})
 
-function renderAll(){renderToday();renderLogs();renderHistory(7);renderAnalysis();loadSettingsUI();renderZeusMemo()}
+function renderAll(){renderToday();renderLogs();renderRecentRecords();renderHistory(7);renderAnalysis();loadSettingsUI();renderZeusMemo()}
 $('recDate').value=TODAY;$('recTime').value=nowTime();renderAll();
 </script>
 <script>
@@ -993,7 +1053,7 @@ if(document.getElementById('importEncrypted'))document.getElementById('importEnc
 document.querySelectorAll('.quick-state').forEach(btn=>{
   btn.onclick=()=>{
     const d=ensureDay(TODAY);
-    d.state.plantState=btn.dataset.state;
+    setStateValue(d,'plantState',btn.dataset.state,true);
     setDay(TODAY,d);
     document.getElementById('quickStateMsg').textContent='保存しました：'+btn.dataset.state;
     renderAll();
