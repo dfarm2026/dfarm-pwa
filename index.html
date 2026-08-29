@@ -134,7 +134,7 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
 .recent-row .main{font-weight:850;font-size:13px}.recent-row .sub{font-size:11px;color:var(--muted);margin-top:3px}
 @media(max-width:780px){.quick-manage{grid-template-columns:repeat(3,1fr)}.quick-manage .qm b{font-size:17px}}
 
-/* --- v3.6.1 天気表示 --- */
+/* --- v3.6.2 天気表示 --- */
 .hero-weather{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
 .weather-pill{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:7px 10px;font-weight:800;line-height:1}
 .weather-icon{font-size:22px;line-height:1}
@@ -168,7 +168,7 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
  <div class="top">
   <div class="brand">Dファーム <small>栽培管理 PRO</small></div>
   <div class="grow"></div>
-  <span class="badge" id="buildBadge">v3.6.1</span>
+  <span class="badge" id="buildBadge">v3.6.2</span>
    <span class="badge" id="saveBadge">● 保存済み</span>
   <button class="btn soft" id="quickBtn">＋給液</button>
  </div>
@@ -890,7 +890,7 @@ document.querySelectorAll('.range').forEach(b=>b.onclick=()=>{document.querySele
 function renderAll(){renderToday();renderLogs();renderRecentRecords();renderHistory(7);renderAnalysis();loadSettingsUI();renderZeusMemo()}
 
 
-// --- v3.6.1 今日の天気（船橋市固定 / Open-Meteo / APIキー不要） ---
+// --- v3.6.2 今日の天気（船橋市固定 / Open-Meteo / APIキー不要） ---
 const WEATHER_CACHE_KEY='dfarm_weather_cache_v1';
 function weatherCodeInfo(code){
  const c=Number(code);
@@ -946,7 +946,7 @@ async function fetchWeatherAt(lat,lon){
 function loadTodayWeather(){
  const cached=readWeatherCache();
  if(cached)paintWeather(cached,true);
- // v3.6.1: iPhone PWAで位置情報待ちにならないよう、船橋市の予報を直接取得する。
+ // v3.6.2: iPhone PWAで位置情報待ちにならないよう、船橋市の予報を直接取得する。
  // これにより起動直後から最高/最低気温を取得し、位置情報の許可操作も不要。
  fetchWeatherAt(35.6947,139.9826).catch(()=>{
   const c=document.getElementById('weatherCond');
@@ -956,7 +956,7 @@ function loadTodayWeather(){
  });
 }
 
-$('recDate').value=TODAY;$('recTime').value=nowTime();renderAll();loadTodayWeather();
+$('recDate').value=TODAY;$('recTime').value=nowTime();renderAll();
 </script>
 <script>
 if('serviceWorker' in navigator){window.addEventListener('load',async()=>{try{const regs=await navigator.serviceWorker.getRegistrations();for(const r of regs)await r.unregister();if('caches' in window){for(const k of await caches.keys())await caches.delete(k)}}catch(e){}})}
@@ -1241,6 +1241,89 @@ if(!localStorage.getItem('dfarm_simple_seen')){
   localStorage.setItem('dfarm_simple_seen','1');
   setTimeout(()=>alert('Dファーム 現場モード\\n\\n1. 給液したら「実施」\\n2. 株を見て状態を1タップ\\n3. 必要な時だけ「記録」「その他」\\n\\n普段は「今日」画面だけでOKです。'),300);
 }
+</script>
+
+<script>
+// --- v3.6.2 weather loader: 独立実行。メイン処理でエラーが出ても天気だけは取得する ---
+(function(){
+  const LAT=35.6947, LON=139.9826;
+  const CACHE='dfarm_weather_cache_v2';
+  function byId(x){return document.getElementById(x)}
+  function info(code){
+    code=Number(code);
+    if(code===0)return ['☀️','快晴'];
+    if(code===1)return ['🌤️','晴れ'];
+    if(code===2)return ['⛅','晴れ時々くもり'];
+    if(code===3)return ['☁️','くもり'];
+    if(code===45||code===48)return ['🌫️','霧'];
+    if([51,53,55,56,57].includes(code))return ['🌦️','霧雨'];
+    if([61,63,65,66,67,80,81,82].includes(code))return ['🌧️','雨'];
+    if([71,73,75,77,85,86].includes(code))return ['🌨️','雪'];
+    if([95,96,99].includes(code))return ['⛈️','雷雨'];
+    return ['🌤️','天気'];
+  }
+  function show(w,note){
+    if(!w || !Number.isFinite(Number(w.max)) || !Number.isFinite(Number(w.min))) return false;
+    const a=info(w.code);
+    if(byId('weatherIcon'))byId('weatherIcon').textContent=a[0];
+    if(byId('weatherCond'))byId('weatherCond').textContent=a[1];
+    if(byId('weatherHigh'))byId('weatherHigh').textContent='最高 '+Math.round(Number(w.max))+'℃';
+    if(byId('weatherLow'))byId('weatherLow').textContent='最低 '+Math.round(Number(w.min))+'℃';
+    if(byId('weatherNote'))byId('weatherNote').textContent=note||'船橋市・今日の予報';
+    return true;
+  }
+  function cacheRead(){
+    try{
+      const x=JSON.parse(localStorage.getItem(CACHE)||'null');
+      if(x && x.day===new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'})) return x;
+    }catch(e){}
+    return null;
+  }
+  function cacheWrite(w){try{localStorage.setItem(CACHE,JSON.stringify(w))}catch(e){}}
+  function requestXHR(url){
+    return new Promise((resolve,reject)=>{
+      const x=new XMLHttpRequest();
+      x.open('GET',url,true);
+      x.timeout=10000;
+      x.onload=()=>{
+        if(x.status>=200&&x.status<300){try{resolve(JSON.parse(x.responseText))}catch(e){reject(e)}}
+        else reject(new Error('HTTP '+x.status));
+      };
+      x.onerror=()=>reject(new Error('network'));
+      x.ontimeout=()=>reject(new Error('timeout'));
+      x.send();
+    });
+  }
+  async function run(){
+    const cached=cacheRead();
+    if(cached)show(cached,'船橋市・今日の予報（前回取得）');
+    const url='https://api.open-meteo.com/v1/forecast?latitude='+LAT+'&longitude='+LON+'&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Asia%2FTokyo&forecast_days=1';
+    try{
+      // Safari/PWA対策として fetch ではなく XMLHttpRequest を使用
+      const j=await requestXHR(url);
+      const w={
+        day:(j.daily&&j.daily.time&&j.daily.time[0])||new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'}),
+        code:j.daily&&j.daily.weather_code&&j.daily.weather_code[0],
+        max:Number(j.daily&&j.daily.temperature_2m_max&&j.daily.temperature_2m_max[0]),
+        min:Number(j.daily&&j.daily.temperature_2m_min&&j.daily.temperature_2m_min[0]),
+        ts:Date.now()
+      };
+      if(!show(w,'船橋市・今日の予報・自動更新')) throw new Error('bad data');
+      cacheWrite(w);
+    }catch(e){
+      if(!cached){
+        if(byId('weatherCond'))byId('weatherCond').textContent='天気取得失敗';
+        if(byId('weatherHigh'))byId('weatherHigh').textContent='最高 --℃';
+        if(byId('weatherLow'))byId('weatherLow').textContent='最低 --℃';
+        if(byId('weatherNote'))byId('weatherNote').textContent='通信状態を確認して再読込';
+      }
+    }
+  }
+  // 既存スクリプトの成否に依存せず実行
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',run,{once:true});
+  else run();
+  window.addEventListener('pageshow',()=>setTimeout(run,300));
+})();
 </script>
 </body>
 </html>
