@@ -133,6 +133,21 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
 .recent-row:last-child{border-bottom:0}
 .recent-row .main{font-weight:850;font-size:13px}.recent-row .sub{font-size:11px;color:var(--muted);margin-top:3px}
 @media(max-width:780px){.quick-manage{grid-template-columns:repeat(3,1fr)}.quick-manage .qm b{font-size:17px}}
+
+/* --- v3.6 天気表示 --- */
+.hero-weather{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.weather-pill{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:7px 10px;font-weight:800;line-height:1}
+.weather-icon{font-size:22px;line-height:1}
+.weather-cond{font-size:12px;opacity:.95}
+.weather-temp{font-size:12px;white-space:nowrap}
+.weather-temp .high{font-weight:900}.weather-temp .low{opacity:.82}
+.weather-note{font-size:9px;opacity:.68;width:100%;margin-left:2px}
+@media(max-width:780px){
+ .hero-weather{gap:6px;margin-top:8px}
+ .weather-pill{padding:7px 9px;gap:6px}
+ .weather-icon{font-size:20px}.weather-cond,.weather-temp{font-size:11px}
+}
+
 </style>
 </head>
 <body>
@@ -153,7 +168,7 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
  <div class="top">
   <div class="brand">Dファーム <small>栽培管理 PRO</small></div>
   <div class="grow"></div>
-  <span class="badge" id="buildBadge">v3.5</span>
+  <span class="badge" id="buildBadge">v3.6</span>
    <span class="badge" id="saveBadge">● 保存済み</span>
   <button class="btn soft" id="quickBtn">＋給液</button>
  </div>
@@ -165,6 +180,14 @@ nav button.active{color:var(--green);font-weight:900}.ico{display:block;font-siz
   <div class="hero-top">
    <div>
     <div class="date" id="todayDate"></div>
+    <div class="hero-weather" id="heroWeather" aria-live="polite">
+     <div class="weather-pill">
+      <span class="weather-icon" id="weatherIcon">⛅</span>
+      <span class="weather-cond" id="weatherCond">天気取得中</span>
+      <span class="weather-temp"><span class="high" id="weatherHigh">最高 --℃</span> / <span class="low" id="weatherLow">最低 --℃</span></span>
+     </div>
+     <div class="weather-note" id="weatherNote">今日の予報</div>
+    </div>
     <h1>今日の栽培管理</h1>
     <p>予定 → 実施 → 状態確認 → 記録まで、この画面だけで完結します。</p>
    </div>
@@ -865,7 +888,70 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.query
 document.querySelectorAll('.range').forEach(b=>b.onclick=()=>{document.querySelectorAll('.range').forEach(x=>{x.classList.remove('primary');x.classList.add('ghost')});b.classList.remove('ghost');b.classList.add('primary');renderHistory(Number(b.dataset.range))})
 
 function renderAll(){renderToday();renderLogs();renderRecentRecords();renderHistory(7);renderAnalysis();loadSettingsUI();renderZeusMemo()}
-$('recDate').value=TODAY;$('recTime').value=nowTime();renderAll();
+
+
+// --- v3.6 今日の天気（Open-Meteo / APIキー不要） ---
+const WEATHER_CACHE_KEY='dfarm_weather_cache_v1';
+function weatherCodeInfo(code){
+ const c=Number(code);
+ if(c===0)return ['☀️','快晴'];
+ if(c===1)return ['🌤️','晴れ'];
+ if(c===2)return ['⛅','晴れ時々くもり'];
+ if(c===3)return ['☁️','くもり'];
+ if(c===45||c===48)return ['🌫️','霧'];
+ if([51,53,55,56,57].includes(c))return ['🌦️','霧雨'];
+ if([61,63,65,66,67,80,81,82].includes(c))return ['🌧️','雨'];
+ if([71,73,75,77,85,86].includes(c))return ['🌨️','雪'];
+ if([95,96,99].includes(c))return ['⛈️','雷雨'];
+ return ['🌤️','天気'];
+}
+function paintWeather(w, cached=false){
+ if(!w)return;
+ const info=weatherCodeInfo(w.code);
+ const el=id=>document.getElementById(id);
+ if(el('weatherIcon'))el('weatherIcon').textContent=info[0];
+ if(el('weatherCond'))el('weatherCond').textContent=info[1];
+ if(el('weatherHigh'))el('weatherHigh').textContent=`最高 ${Math.round(Number(w.max))}℃`;
+ if(el('weatherLow'))el('weatherLow').textContent=`最低 ${Math.round(Number(w.min))}℃`;
+ if(el('weatherNote'))el('weatherNote').textContent=cached?'今日の予報（前回取得）':'今日の予報・自動更新';
+}
+function readWeatherCache(){
+ try{
+  const x=JSON.parse(localStorage.getItem(WEATHER_CACHE_KEY)||'null');
+  if(x&&x.date===TODAY&&Number.isFinite(Number(x.max))&&Number.isFinite(Number(x.min)))return x;
+ }catch{}
+ return null;
+}
+async function fetchWeatherAt(lat,lon){
+ const u=new URL('https://api.open-meteo.com/v1/forecast');
+ u.searchParams.set('latitude',lat);
+ u.searchParams.set('longitude',lon);
+ u.searchParams.set('daily','weather_code,temperature_2m_max,temperature_2m_min');
+ u.searchParams.set('timezone','Asia/Tokyo');
+ u.searchParams.set('forecast_days','1');
+ const r=await fetch(u.toString(),{cache:'no-store'});
+ if(!r.ok)throw new Error('weather http '+r.status);
+ const j=await r.json();
+ const w={date:(j.daily?.time||[])[0]||TODAY,code:(j.daily?.weather_code||[])[0],max:(j.daily?.temperature_2m_max||[])[0],min:(j.daily?.temperature_2m_min||[])[0],ts:Date.now()};
+ if(!Number.isFinite(Number(w.max))||!Number.isFinite(Number(w.min)))throw new Error('weather data');
+ localStorage.setItem(WEATHER_CACHE_KEY,JSON.stringify(w));
+ paintWeather(w,false);
+}
+function loadTodayWeather(){
+ const cached=readWeatherCache(); if(cached)paintWeather(cached,true);
+ // 位置情報が許可済みなら現在地を使用。拒否/未許可時は船橋市中心部の概略位置を使用。
+ const fallback=()=>fetchWeatherAt(35.6947,139.9826).catch(()=>{
+  const n=document.getElementById('weatherNote'); if(n)n.textContent=cached?'今日の予報（前回取得）':'天気を取得できません';
+ });
+ if(!navigator.geolocation){fallback();return}
+ navigator.geolocation.getCurrentPosition(
+  p=>fetchWeatherAt(p.coords.latitude,p.coords.longitude).catch(fallback),
+  fallback,
+  {enableHighAccuracy:false,timeout:3500,maximumAge:6*60*60*1000}
+ );
+}
+
+$('recDate').value=TODAY;$('recTime').value=nowTime();renderAll();loadTodayWeather();
 </script>
 <script>
 if('serviceWorker' in navigator){window.addEventListener('load',async()=>{try{const regs=await navigator.serviceWorker.getRegistrations();for(const r of regs)await r.unregister();if('caches' in window){for(const k of await caches.keys())await caches.delete(k)}}catch(e){}})}
